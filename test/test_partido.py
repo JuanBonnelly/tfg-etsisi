@@ -61,7 +61,7 @@ for p in partidos:
 
 
 # ---------- 5. Comprobar relación inversa desde Equipo ----------
-print("\n✅ Comprobando relación inversa desde Equipo:")
+print("\n Comprobando relación inversa desde Equipo:")
 
 valencia = session.query(Equipo).filter_by(nombre="Valencia CF").first()
 for p in valencia.partidos_local:
