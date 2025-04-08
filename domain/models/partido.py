@@ -25,6 +25,8 @@ class Partido(Base):
     equipo_visitante = relationship("Equipo", foreign_keys=[equipo_visitante_id])
     temporada = relationship("Temporada")
     competicion = relationship("Competicion")
+    estadisticas = relationship("EstadisticasPartido", uselist=False, back_populates="partido")
+
 
     def __repr__(self):
         return (
