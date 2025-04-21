@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, ForeignKey, Float
 from sqlalchemy.orm import relationship
 from domain.models.base import Base
-from domain.models.partido import Partido
+
 
 class EstadisticasPartido(Base):
     __tablename__ = 'estadisticas_partido'
