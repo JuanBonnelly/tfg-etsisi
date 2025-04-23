@@ -1,97 +1,99 @@
-import time
-import random
-import cloudscraper
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from bs4 import BeautifulSoup
+from domain.models.estadisticas_partido import EstadisticasPartido
+from infra.minio.minio_client import create_minio_client
 
-def scrape_estadisticas(partidos: list[dict]) -> list[dict]:
-    scraper = cloudscraper.create_scraper()
-    estadisticas = []
 
-    for i, partido in enumerate(partidos, start=1):
-        url = partido.get("match_url")
-        match_id = partido.get("match_id")
+def scrape_estadisticas(match_id: str) -> EstadisticasPartido | None:
+    client = create_minio_client()
 
-        # print(f"\n[{i}] Accediendo a: {url}")
-        response = scraper.get(url)
-        if response.status_code != 200:
-            # print(f"Error {response.status_code} al acceder a {url}")
+    try:
+        obj = client.get_object("fbref", "estadisticas_partido.html")
+        html = obj.read().decode("utf-8")
+    except Exception as e:
+        print(f" Error al acceder al archivo: {e}")
+        return None
+
+    soup = BeautifulSoup(html, "html.parser")
+    estadisticas = EstadisticasPartido(partido_id=match_id)
+
+    filas = soup.find_all("tr")
+    for fila in filas:
+        th = fila.find("th")
+        if not th or not th.has_attr("colspan"):
             continue
 
-        soup = BeautifulSoup(response.text, "html.parser")
-        datos = {"match_id": match_id}
+        titulo = th.get_text(strip=True).lower()
 
-        secciones = soup.find_all("tr")
-        for seccion in secciones:
-            th = seccion.find("th")
-            if not th or not th.has_attr("colspan"):
-                continue
+        if "posesión" in titulo:
+            tds = fila.find_next_siblings("tr", limit=1)[0].find_all("td")
+            try:
+                estadisticas.posesion_local = float(tds[0].get_text(strip=True).replace("%", ""))
+                estadisticas.posesion_visitante = float(tds[1].get_text(strip=True).replace("%", ""))
+            except:
+                pass
 
-            titulo = th.get_text(strip=True).lower()
-            # print(f"Sección detectada: {titulo}")
-
-            if "posesión" in titulo:
-                tds = seccion.find_next_siblings("tr", limit=1)[0].find_all("td")
+        elif "disparos a puerta" in titulo:
+            siguiente = fila.find_next_siblings("tr", limit=1)
+            if siguiente:
                 try:
-                    datos["posesion_local"] = float(tds[0].get_text(strip=True).replace("%", ""))
-                    datos["posesion_visitante"] = float(tds[1].get_text(strip=True).replace("%", ""))
-                    # print(f"Posesión: Local {datos['posesion_local']}% | Visitante {datos['posesion_visitante']}%")
+                    divs_local = siguiente[0].find_all("td")[0].find_all("div")
+                    divs_visitante = siguiente[0].find_all("td")[1].find_all("div")
+                    texto_local = divs_local[0].get_text(strip=True).lower()
+                    estadisticas.tiros_puerta_local = int(texto_local.split("of")[0].strip())
+                    estadisticas.tiros_local = int(texto_local.split("of")[1].split("—")[0].strip())
+                    texto_visitante = divs_visitante[0].get_text(strip=True).lower()
+                    estadisticas.tiros_puerta_visitante = int(texto_visitante.split("of")[0].split()[-1])
+                    estadisticas.tiros_visitante = int(texto_visitante.split("of")[1].strip())
                 except:
                     pass
 
-            elif "disparos a puerta" in titulo:
-                siguiente = seccion.find_next_siblings("tr", limit=1)
-                if siguiente:
-                    divs_local = siguiente[0].find_all("td")[0].find_all("div")
-                    divs_visitante = siguiente[0].find_all("td")[1].find_all("div")
-                    try:
-                        texto_local = divs_local[0].get_text(strip=True).lower()
-                        datos["tiros_puerta_local"] = int(texto_local.split("of")[0].strip())
-                        datos["tiros_local"] = int(texto_local.split("of")[1].split("—")[0].strip())
-                        texto_visitante = divs_visitante[0].get_text(strip=True).lower()
-                        datos["tiros_puerta_visitante"] = int(texto_visitante.split("of")[0].split()[-1])
-                        datos["tiros_visitante"] = int(texto_visitante.split("of")[1].strip())
-                        # print(f"Tiros totales: Local {datos['tiros_local']} | Visitante {datos['tiros_visitante']}")
-                        # print(f"Tiros a puerta: Local {datos['tiros_puerta_local']} | Visitante {datos['tiros_puerta_visitante']}")
-                    except:
-                        pass
+        elif "tarjetas" in titulo:
+            siguiente = fila.find_next_siblings("tr", limit=1)
+            if siguiente:
+                tds = siguiente[0].find_all("td")
+                try:
+                    estadisticas.tarjetas_amarillas_local = len(tds[0].find_all("span", class_="yellow_card"))
+                    estadisticas.tarjetas_amarillas_visitante = len(tds[1].find_all("span", class_="yellow_card"))
+                    estadisticas.tarjetas_rojas_local = len(tds[0].find_all("span", class_="red_card"))
+                    estadisticas.tarjetas_rojas_visitante = len(tds[1].find_all("span", class_="red_card"))
+                except:
+                    pass
 
-            elif "tarjetas" in titulo:
-                siguiente = seccion.find_next_siblings("tr", limit=1)
-                if siguiente:
-                    tds = siguiente[0].find_all("td")
-                    try:
-                        amarillas_local = len(tds[0].find_all("span", class_="yellow_card"))
-                        amarillas_visitante = len(tds[1].find_all("span", class_="yellow_card"))
-                        rojas_local = len(tds[0].find_all("span", class_="red_card"))
-                        rojas_visitante = len(tds[1].find_all("span", class_="red_card"))
+        # === Tiros de esquina ===
+    extras_div = soup.find("div", id="team_stats_extra")
+    if extras_div:
+        filas_extra = extras_div.find_all("div")
+        for fila in filas_extra:
+            th = fila.find("div", string=lambda text: text and "Tiro de esquina" in text)
+            if th:
+                cornerlocal_div = th.find_previous("div")
+                cornervisitante_div = th.find_next("div")
+                try:
+                    estadisticas.corners_local = int(cornerlocal_div.get_text(strip=True))
+                    estadisticas.corners_visitante = int(cornervisitante_div.get_text(strip=True))
+                except Exception as e:
+                    print(f" Error al procesar córners: {e}")
+                break  
 
-                        datos["amarillas_local"] = amarillas_local
-                        datos["rojas_local"] = rojas_local
-                        datos["amarillas_visitante"] = amarillas_visitante
-                        datos["rojas_visitante"] = rojas_visitante
-
-                        # print(f"Amarillas -> L: {amarillas_local} | V: {amarillas_visitante}")
-                        # print(f"Rojas -> L: {rojas_local} | V: {rojas_visitante}")
-                    except:
-                        pass
-
-        # print(f"Diccionario final para {match_id}: {datos}")
-        estadisticas.append(datos)
-        time.sleep(random.uniform(1.5, 2.5))  # Anti-bloqueo
-
+    print(f" Estadísticas extraídas correctamente para {match_id}")
     return estadisticas
 
-# Modo prueba para comprobar se extrae correctamente estadisticas
-"""
 if __name__ == "__main__":
-    partidos_prueba = [
-        {"match_id": "e62f6e78", "match_url": "https://fbref.com/es/partidos/e62f6e78/Crystal-Palace-Arsenal-Agosto-5-2022-Premier-League"},
-        {"match_id": "6713c1dc", "match_url": "https://fbref.com/es/partidos/6713c1dc/Fulham-Liverpool-Agosto-6-2022-Premier-League"}
-    ]
-    estadisticas = scrape_estadisticas(partidos_prueba)
-    for i, e in enumerate(estadisticas, start=1):
-        print(f"\n[{i}] Estadísticas para partido {e['match_id']}")
-        for k, v in e.items():
-            if k != "match_id":
-                print(f"   {k}: {v}")
-"""
+    partidos_prueba = ["3adf2aa7"]
+
+    for i, match_id in enumerate(partidos_prueba, start=1):
+        estadisticas = scrape_estadisticas(match_id)
+        if estadisticas:
+            print(f"\n[{i}] Estadísticas para el partido {match_id}")
+            print(f"  Posesión:       Local {estadisticas.posesion_local}% | Visitante {estadisticas.posesion_visitante}%")
+            print(f"  Tiros:          Local {estadisticas.tiros_local} | Visitante {estadisticas.tiros_visitante}")
+            print(f"  Tiros a puerta: Local {estadisticas.tiros_puerta_local} | Visitante {estadisticas.tiros_puerta_visitante}")
+            print(f"  Córners:        Local {estadisticas.corners_local} | Visitante {estadisticas.corners_visitante}")
+            print(f"  Amarillas:      Local {estadisticas.tarjetas_amarillas_local} | Visitante {estadisticas.tarjetas_amarillas_visitante}")
+            print(f"  Rojas:          Local {estadisticas.tarjetas_rojas_local} | Visitante {estadisticas.tarjetas_rojas_visitante}")
+        else:
+            print(f"\n[{i}]  No se pudieron obtener estadísticas para el partido {match_id}")

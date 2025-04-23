@@ -16,8 +16,10 @@ Base.metadata.create_all(get_engine())
 session = get_session()
 
 # ---------- Crear entidades base ----------
-equipo1 = Equipo(nombre="Girona", abreviatura="GIR")
-equipo2 = Equipo(nombre="Osasuna", abreviatura="OSA")
+equipo1 = Equipo(equipo_id="GIR123", nombre="Girona", abreviatura="GIR")
+
+equipo2 = Equipo(equipo_id="AS", nombre="Arsenal", abreviatura="AS")
+
 competicion = Competicion(nombre="LaLiga", abreviatura="LL")
 session.add_all([equipo1, equipo2, competicion])
 session.commit()
@@ -63,7 +65,7 @@ session.commit()
 print("\n VALIDACIÓN COMPLETA DEL MODELO DE DATOS\n")
 
 # Partido → Equipos
-print(f"Partido: {partido.equipo_local.nombre} vs {partido.equipo_visitante.nombre}")
+print(f"Partido: {partido.equipo_local_id} vs {partido.equipo_visitante_id}")
 print(f"Resultado: {partido.goles_local} - {partido.goles_visitante}")
 
 # Partido → Temporada / Competición
