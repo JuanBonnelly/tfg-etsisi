@@ -1,86 +1,121 @@
-import time
-import random
-import cloudscraper
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
+from datetime import datetime
 from bs4 import BeautifulSoup
+from infra.minio.minio_client import create_minio_client
+from domain.models.partido import Partido
+from domain.models.equipo import Equipo
 
-# === CONFIGURACIÓN ===
-def scrape_partidos() -> list[dict]:
-    temporada_id = "2022-2023"
-    competicion_id = 9
-    nombre_competicion = "Premier-League"
-    url = f"https://fbref.com/es/comps/{competicion_id}/{temporada_id}/horario/Marcadores-y-partidos-de-{temporada_id}-{nombre_competicion}"
+equipos_extraidos = {}
+def scrape_partidos() -> tuple[list[Partido], list[Equipo]]:
+    client = create_minio_client()
+    obj = client.get_object("fbref", "partidos_2021_2022.html")
+    html = obj.read().decode("utf-8")
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
-        "Accept-Language": "es-ES,es;q=0.9",
-        "Referer": "https://www.google.com/",
-        "Connection": "keep-alive"
-    }
-
-    print(f"Scrapeando URL: {url}")
-    scraper = cloudscraper.create_scraper()
-    response = scraper.get(url, headers=headers)
-    print(f"Código de estado: {response.status_code}")
-
-    if response.status_code != 200:
-        print("Error al acceder a la página.")
-        return []
-
-    soup = BeautifulSoup(response.text, "html.parser")
-    tabla = soup.find("table")
+    soup = BeautifulSoup(html, "html.parser")
+    tabla = soup.find("table", {"id": "sched_2021-2022_9_1"})
 
     if not tabla:
-        print("No se encontró la tabla de partidos.")
-        return []
+        print(" No se encontró la tabla de partidos.")
+        return [], []
 
     rows = tabla.find("tbody").find_all("tr")
     partidos = []
+    #equipos_extraidos = {}
 
-    for i, row in enumerate(rows[:10]):
+    for row in rows:
+        if 'class' in row.attrs and "thead" in row['class']:
+            continue
+
         cells = row.find_all("td")
         if not cells:
-            continue  
+            continue
 
         fila = {}
-
-        # Extraer Fecha
-        fecha = row.find("th", {"data-stat": "date"})
-        fila["date"] = fecha.text.strip() if fecha else None
-
         for cell in cells:
             data_stat = cell.get("data-stat")
-            fila[data_stat] = cell.text.strip()
+            valor = cell.text.strip()
+            fila[data_stat] = valor
 
-            # Extraer marcador y goles
-            if data_stat == "score" and cell.text.strip():
-                marcador = cell.text.strip()
-                goles = marcador.replace("–", "-").split("-")
+            if data_stat == "score" and valor:
+                goles = valor.replace("–", "-").split("-")
                 if len(goles) == 2:
                     fila["home_team_score"] = goles[0].strip()
                     fila["away_team_score"] = goles[1].strip()
 
-            # Extraer enlace al detalle del partido
             if data_stat == "match_report":
                 enlace = cell.find("a")
-                if enlace and "/partidos/" in enlace.get("href"):
+                if enlace and "/partidos/" in enlace.get("href", ""):
                     href = enlace.get("href")
-                    fila["match_id"] = href.split("/")[3]
-                    fila["match_url"] = f"https://fbref.com{href}"
+                    fila["match_id"] = href.split("/")[5]
+                    fila["match_url"] = f"{href}"
 
-        if all(k in fila for k in ["home_team_score", "away_team_score", "match_id"]):
-            partidos.append(fila)
+            if data_stat == "home_team" and valor:
+                enlace = cell.find("a")
+                if enlace and "equipos" in enlace.get("href", ""):
+                    home_id = enlace["href"].split("/")[5]
+                    home_name = enlace.text.strip()
+                    fila["home_team_id"] = home_id
+                    fila["home_team"] = home_name
 
-        # time.sleep(random.uniform(1.5, 3.0))  # Descomentar si se scrapearan muchas filas
+                    if home_id not in equipos_extraidos:
+                        equipo = Equipo(
+                            equipo_id= home_id,  
+                            nombre=home_name,
+                            abreviatura=home_name[:3].upper()
+                        )
+                        equipos_extraidos[home_id] = equipo
 
-    print(f"\nSe han extraído {len(partidos)} partidos correctamente.")
-    return partidos
+            if data_stat == "away_team" and valor:
+                enlace = cell.find("a")
+                if enlace and "equipos" in enlace.get("href", ""):
+                    away_id = enlace["href"].split("/")[5]
+                    away_name = enlace.text.strip()
+                    fila["away_team_id"] = away_id
+                    fila["away_team"] = away_name
 
-# === Mostrar resultados si se ejecuta directamente
+                    if away_id not in equipos_extraidos:
+                        equipo = Equipo(
+                            equipo_id= away_id,
+                            nombre=away_name,
+                            abreviatura=away_name[:3].upper()
+                        )
+                        equipos_extraidos[away_id] = equipo
+
+        if all(k in fila for k in ["date", "home_team_score", "away_team_score", "match_id"]):
+            try:
+                fecha = datetime.strptime(fila["date"], "%Y-%m-%d").date()
+            except ValueError:
+                continue
+
+            partido = Partido(
+                partido_id = fila["match_id"],
+                fecha=fecha,
+                equipo_local_id=fila["home_team_id"],
+                equipo_visitante_id=fila["away_team_id"],
+                goles_local=int(fila["home_team_score"]),
+                goles_visitante=int(fila["away_team_score"]),
+                temporada_id=2021,
+                competicion_id=9
+            )
+            partidos.append(partido)
+
+    print(f"\n Se han extraído {len(partidos)} partidos y {len(equipos_extraidos)} equipos.")
+    return partidos, list(equipos_extraidos.values())
+
+
 if __name__ == "__main__":
-    partidos = scrape_partidos()
-    for i, p in enumerate(partidos, start=1):
-        print(f"\n[{i}] {p.get('date')} - {p.get('home_team')} vs {p.get('away_team')}")
-        print(f"Marcador: {p.get('home_team_score')} - {p.get('away_team_score')}")
-        print(f"ID partido: {p.get('match_id')}")
-        print(f"URL detalle: {p.get('match_url')}")
+    partidos, equipos = scrape_partidos()
+
+    print("\n Primeros 5 partidos:")
+    for i, p in enumerate(partidos[:40], start=1):
+        print(f"[{i}] {p.fecha} - {p.equipo_local_id} vs {p.equipo_visitante_id} | {p.goles_local}-{p.goles_visitante}-----{p.partido_id}")
+
+    print("\n Equipos extraídos:")
+    for e in equipos:
+        print(f"ID: {e.equipo_id}, Nombre: {e.nombre}, Abreviatura: {e.abreviatura}")
+
+
+__all__ = ["scrape_partidos", "equipos_extraidos"]

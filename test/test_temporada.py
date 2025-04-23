@@ -27,7 +27,7 @@ session.commit()
 temporada = Temporada(
     año_inicio=2022,
     año_fin=2023,
-    competicion_id=1  #  Temporal hasta que se cree Competicion
+    competicion_id=2021  #  Temporal hasta que se cree Competicion
 )
 session.add(temporada)
 session.commit()
