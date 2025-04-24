@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, ForeignKey
+from sqlalchemy import Column, Integer, ForeignKey, String
 from sqlalchemy.orm import relationship
 from domain.models.base import Base  
 from domain.models.competicion import Competicion
@@ -6,7 +6,7 @@ from domain.models.competicion import Competicion
 class Temporada(Base):
     __tablename__ = 'temporada'
 
-    temporada_id = Column(Integer, primary_key=True, nullable=False)
+    temporada_id = Column(String(9), primary_key=True, nullable=False)
     año_inicio = Column(Integer, nullable=False)
     año_fin = Column(Integer, nullable=False)
     competicion_id = Column(Integer, nullable=False)
