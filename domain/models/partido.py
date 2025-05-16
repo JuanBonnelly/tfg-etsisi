@@ -22,7 +22,7 @@ class Partido(Base):
 
     #temporada_id = Column(Integer, ForeignKey('temporada.temporada_id'), nullable=False)
     #competicion_id = Column(Integer, ForeignKey('competicion.competicion_id'), nullable=False)
-    temporada_id = Column(Integer,nullable=False)
+    temporada_id = Column(String(9),nullable=False)
     competicion_id = Column(Integer, nullable=False)
     # Relaciones ORM
     #equipo_local = relationship("Equipo", foreign_keys=[equipo_local_id])
