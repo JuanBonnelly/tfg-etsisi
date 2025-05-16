@@ -11,12 +11,13 @@ class EstadisticasPartido(Base):
     partido_id = Column(String(20), nullable=False, unique=True)
     posesion_local = Column(Float, nullable=True)
     posesion_visitante = Column(Float, nullable=True)
+    
+    # de momento vamos a dejar los tiros fuera en el futuro los añadiremos
+    #tiros_local = Column(Integer, nullable=True)
+    #tiros_visitante = Column(Integer, nullable=True)
 
-    tiros_local = Column(Integer, nullable=True)
-    tiros_visitante = Column(Integer, nullable=True)
-
-    tiros_puerta_local = Column(Integer, nullable=True)
-    tiros_puerta_visitante = Column(Integer, nullable=True)
+    #tiros_puerta_local = Column(Integer, nullable=True)
+    #tiros_puerta_visitante = Column(Integer, nullable=True)
 
     corners_local = Column(Integer, nullable=True)
     corners_visitante = Column(Integer, nullable=True)
