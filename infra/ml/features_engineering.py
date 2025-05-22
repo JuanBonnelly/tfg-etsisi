@@ -57,6 +57,7 @@ for i, row in tqdm(df.iterrows(), total=len(df)):
 
 # ---------------SEGUNDA FASE: añadir medias de últimos 10 enfrentamientos directos----------------
 h2h_vars = estadisticas  # mismas estadísticas
+df["tendencia_empate_h2h"] = np.nan
 
 # Crear nuevas columnas para enfrentamientos directos
 for var in h2h_vars:
@@ -88,6 +89,13 @@ for i, row in tqdm(df.iterrows(), total=len(df), desc="H2H"):
         valores = enfrentamientos[var].dropna()
         media = valores.mean() if not valores.empty else np.nan
         df.at[i, f"media_h2h_{var}"] = media
+
+    # Calcular tendencia de empate en los últimos H2H
+    if not enfrentamientos.empty:
+        empates_h2h = (enfrentamientos["resultado"] == 0).sum()
+        df.at[i, "tendencia_empate_h2h"] = empates_h2h / len(enfrentamientos)
+    else:
+        df.at[i, "tendencia_empate_h2h"] = np.nan
 
 # -------- TERCERA FASE: medias históricas acumuladas -----
 for var in estadisticas:
@@ -167,6 +175,111 @@ for i, row in tqdm(df.iterrows(), total=len(df), desc="Diferencia Goles"):
     df.at[i, "media_hist_diferencia_goles_local"] = diferencia(hist_local, equipo_local)
     df.at[i, "media_hist_diferencia_goles_visitante"] = diferencia(hist_visit, equipo_visitante)
 
+# ----------------QUINTA FASE: rachas + diferencias de estadísticas ---------------------
+print(" Añadiendo rachas y diferencias de estadísticas...")
+
+# Inicializar nuevas columnas
+df["racha_ganados_local_ult5"] = np.nan
+df["racha_ganados_visitante_ult5"] = np.nan
+df["diferencia_posesion"] = df["posesion_local"] - df["posesion_visitante"]
+df["diferencia_corners"] = df["corners_local"] - df["corners_visitante"]
+df["diferencia_tarjetas_amarillas"] = df["tarjetas_amarillas_local"] - df["tarjetas_amarillas_visitante"]
+df["diferencia_tarjetas_rojas"] = df["tarjetas_rojas_local"] - df["tarjetas_rojas_visitante"]
+df["media_hist_goles_local_a_favor"] = np.nan
+df["media_hist_goles_local_en_contra"] = np.nan
+df["racha_empates_local_ult5"] = np.nan
+df["racha_derrotas_local_ult5"] = np.nan
+df["racha_empates_visitante_ult5"] = np.nan
+df["racha_derrotas_visitante_ult5"] = np.nan
+df["goles_local_ult5_media"] = np.nan
+df["goles_visitante_ult5_media"] = np.nan
+df["tendencia_empate_local"] = np.nan
+df["tendencia_empate_visitante"] = np.nan
+
+
+
+for i, row in tqdm(df.iterrows(), total=len(df), desc="Rachas y diferencias"):
+
+    fecha_actual = row["fecha"]
+    equipo_local = row["nombre_equipo_local"]
+    equipo_visitante = row["nombre_equipo_visitante"]
+
+    ult5_local = df[
+        ((df["nombre_equipo_local"] == equipo_local) | (df["nombre_equipo_visitante"] == equipo_local)) &
+        (df["fecha"] < fecha_actual)
+    ].sort_values(by="fecha", ascending=False).head(5)
+
+    ult5_visit = df[
+        ((df["nombre_equipo_local"] == equipo_visitante) | (df["nombre_equipo_visitante"] == equipo_visitante)) &
+        (df["fecha"] < fecha_actual)
+    ].sort_values(by="fecha", ascending=False).head(5)
+
+    def ganados(partidos, equipo):
+        count = 0
+        for _, p in partidos.iterrows():
+            if p["resultado"] == 1 and p["nombre_equipo_local"] == equipo:
+                count += 1
+            elif p["resultado"] == -1 and p["nombre_equipo_visitante"] == equipo:
+                count += 1
+        return count
+
+    df.at[i, "racha_ganados_local_ult5"] = ganados(ult5_local, equipo_local)
+    df.at[i, "racha_ganados_visitante_ult5"] = ganados(ult5_visit, equipo_visitante)
+
+    # Históricos del equipo local solo jugando en casa
+    partidos_local_en_casa = df[
+        (df["nombre_equipo_local"] == equipo_local) & (df["fecha"] < fecha_actual)
+    ]
+    df.at[i, "media_hist_goles_local_a_favor"] = partidos_local_en_casa["goles_local"].mean() if not partidos_local_en_casa.empty else np.nan
+    df.at[i, "media_hist_goles_local_en_contra"] = partidos_local_en_casa["goles_visitante"].mean() if not partidos_local_en_casa.empty else np.nan
+
+        # Nuevas funciones auxiliares
+    def empates(partidos, equipo):
+        count = 0
+        for _, p in partidos.iterrows():
+            if p["resultado"] == 0 and (p["nombre_equipo_local"] == equipo or p["nombre_equipo_visitante"] == equipo):
+                count += 1
+        return count
+
+    def derrotas(partidos, equipo):
+        count = 0
+        for _, p in partidos.iterrows():
+            if p["resultado"] == -1 and p["nombre_equipo_local"] == equipo:
+                count += 1
+            elif p["resultado"] == 1 and p["nombre_equipo_visitante"] == equipo:
+                count += 1
+        return count
+
+    # Nuevas variables: rachas de empates y derrotas
+    df.at[i, "racha_empates_local_ult5"] = empates(ult5_local, equipo_local)
+    df.at[i, "racha_derrotas_local_ult5"] = derrotas(ult5_local, equipo_local)
+    df.at[i, "racha_empates_visitante_ult5"] = empates(ult5_visit, equipo_visitante)
+    df.at[i, "racha_derrotas_visitante_ult5"] = derrotas(ult5_visit, equipo_visitante)
+
+    # Nuevas variables: media de goles en últimos 5 partidos
+    df.at[i, "goles_local_ult5_media"] = ult5_local.apply(
+        lambda p: p["goles_local"] if p["nombre_equipo_local"] == equipo_local else p["goles_visitante"],
+        axis=1
+    ).mean()
+    
+    df.at[i, "goles_visitante_ult5_media"] = ult5_visit.apply(
+        lambda p: p["goles_visitante"] if p["nombre_equipo_visitante"] == equipo_visitante else p["goles_local"],
+        axis=1
+    ).mean()
+
+
+    # % de empates en los últimos 10 partidos
+    ult10_local = df[((df["nombre_equipo_local"] == equipo_local) | (df["nombre_equipo_visitante"] == equipo_local)) & (df["fecha"] < fecha_actual)].sort_values(by="fecha", ascending=False).head(10)
+    ult10_visit = df[((df["nombre_equipo_local"] == equipo_visitante) | (df["nombre_equipo_visitante"] == equipo_visitante)) & (df["fecha"] < fecha_actual)].sort_values(by="fecha", ascending=False).head(10)
+
+    empate_local = (ult10_local["resultado"] == 0).sum()
+    empate_visit = (ult10_visit["resultado"] == 0).sum()
+
+    df.at[i, "tendencia_empate_local"] = empate_local / len(ult10_local) if len(ult10_local) > 0 else np.nan
+    df.at[i, "tendencia_empate_visitante"] = empate_visit / len(ult10_visit) if len(ult10_visit) > 0 else np.nan
+
+
+
 
 # Verificar columnas esperadas en el dataset enriquecido
 columnas_esperadas = [
@@ -184,8 +297,15 @@ else:
     print(" Faltan columnas en el dataset:", faltantes)
 
 # Opcional: mostrar valores de ejemplo
-print("\n Ejemplo de diferencias de goles (primeros 3 partidos):")
-print(df[["nombre_equipo_local", "nombre_equipo_visitante", "fecha"] + columnas_esperadas].head(3))
+print("\n Ejemplo de diferencias de goles y rachas (últimos 5 partidos):")
+print(df[[
+    "fecha", "nombre_equipo_local", "nombre_equipo_visitante",
+    "media_ult10_diferencia_goles_local", "media_ult10_diferencia_goles_visitante",
+    "racha_ganados_local_ult5", "racha_empates_local_ult5", "racha_derrotas_local_ult5",
+    "racha_ganados_visitante_ult5", "racha_empates_visitante_ult5", "racha_derrotas_visitante_ult5",
+    "goles_local_ult5_media", "goles_visitante_ult5_media"
+]].tail(5))
+
 
 # Crear carpeta de salida
 os.makedirs("data", exist_ok=True)
