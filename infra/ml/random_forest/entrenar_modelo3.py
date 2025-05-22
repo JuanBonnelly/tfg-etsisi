@@ -54,5 +54,5 @@ print(grid_search.best_params_)
 
 # Guardar el modelo
 os.makedirs("modelos", exist_ok=True)
-joblib.dump(mejor_modelo, "modelos/modelo_randomforest3.pkl")
-print(" Modelo guardado como 'modelos/modelo_randomforest3.pkl'")
+joblib.dump(mejor_modelo, "modelos/random_forest/modelo_randomforest3.pkl")
+print(" Modelo guardado como 'modelos/random_forest/modelo_randomforest3.pkl'")

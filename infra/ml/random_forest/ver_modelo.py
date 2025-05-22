@@ -8,7 +8,7 @@ matplotlib.use('Agg')  # Fuerza uso sin GUI (evita error Tcl)
 import matplotlib.pyplot as plt
 
 # Ruta al modelo que quieres analizar
-MODELO_PATH = "modelos/modelo_randomforest4.pkl"
+MODELO_PATH = "modelos/random_forest/modelo_randomforest5.pkl"
 
 # Ruta al dataset que se usó para entrenar el modelo
 DATASET_PATH = "data/dataset_partidos_enriquecido.csv"
@@ -28,7 +28,11 @@ if not os.path.exists(DATASET_PATH):
     exit()
 
 df = pd.read_csv(DATASET_PATH)
-features = [col for col in df.columns if col.startswith("media_")]
+features = [col for col in df.columns if col.startswith((
+    "media_ult10_", "media_h2h_", "media_hist_",
+    "diferencia_", "racha_", "media_hist_goles_", "tendencia_empate_"
+))]
+
 
 # ================= INFO DEL MODELO ==================
 if hasattr(modelo, "feature_importances_"):
@@ -51,8 +55,8 @@ if hasattr(modelo, "feature_importances_"):
     os.makedirs("graficas", exist_ok=True)
 
     # Guardar imagen
-    plt.savefig("graficas/importancia_variables_modelo4.png", dpi=300)
-    print("Gráfico guardado en 'graficas/importancia_variables_modelo4.png'")
+    plt.savefig("graficas/importancia_variables_modelo5.png", dpi=300)
+    print("Gráfico guardado en 'graficas/importancia_variables_modelo5.png'")
 
 
 else:
