@@ -84,6 +84,6 @@ print("\n Mejor configuración encontrada:")
 print(grid_search.best_params_)
 
 # Guardar el modelo entrenado
-#os.makedirs("modelos", exist_ok=True)
-#joblib.dump(model, "modelos/modelo_randomforest5.pkl")
-#print(" Modelo guardado como 'modelos/modelo_randomforest5.pkl'")
+os.makedirs("modelos", exist_ok=True)
+joblib.dump(model, "modelos/random_forest/modelo_randomforest5.pkl")
+print(" Modelo guardado como 'modelos/random_forest/modelo_randomforest5.pkl'")

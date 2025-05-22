@@ -46,5 +46,5 @@ print(classification_report(y_test, y_pred))
 
 # Guardar modelo
 os.makedirs("modelos", exist_ok=True)
-joblib.dump(model, "modelos/modelo_randomforest4.pkl")
-print(" Modelo guardado como 'modelos/modelo_randomforest4.pkl'")
+joblib.dump(model, "modelos/random_forest/modelo_randomforest4.pkl")
+print(" Modelo guardado como 'modelos/random_forest/modelo_randomforest4.pkl'")
