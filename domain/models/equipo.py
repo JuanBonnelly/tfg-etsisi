@@ -10,8 +10,8 @@ class Equipo(Base):
     abreviatura = Column(String(10), nullable=False)
 
     # Relaciones con Partido
-    #partidos_local = relationship("Partido", back_populates="equipo_local", foreign_keys='Partido.equipo_local_id')
-    #partidos_visitante = relationship("Partido", back_populates="equipo_visitante", foreign_keys='Partido.equipo_visitante_id')
+    partidos_local = relationship("Partido", back_populates="equipo_local", foreign_keys='Partido.equipo_local_id')
+    partidos_visitante = relationship("Partido", back_populates="equipo_visitante", foreign_keys='Partido.equipo_visitante_id')
     # Temporalmente sin foreing_keys
     
     

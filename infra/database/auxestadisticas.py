@@ -29,7 +29,7 @@ def insertar_estadisticas_csv():
 
     session.commit()
     session.close()
-    print("✅ Datos insertados en estadisticas_partido_csv con SQLAlchemy.")
+    print("Datos insertados en estadisticas_partido_csv con SQLAlchemy.")
 
 if __name__ == "__main__":
     insertar_estadisticas_csv()

@@ -7,8 +7,8 @@ class EstadisticasPartido(Base):
     __tablename__ = 'estadisticas_partido'
 
     estadisticas_id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
-    #partido_id = Column(Integer, ForeignKey('partido.partido_id'), nullable=False, unique=True)
-    partido_id = Column(String(20), nullable=False, unique=True)
+    partido_id = Column(String(20), ForeignKey('partido.partido_id'), nullable=False, unique=True)
+    #partido_id = Column(String(20), nullable=False, unique=True)    para pruebas sin foreing_keys
     posesion_local = Column(Float, nullable=True)
     posesion_visitante = Column(Float, nullable=True)
     
@@ -29,7 +29,7 @@ class EstadisticasPartido(Base):
     tarjetas_rojas_visitante = Column(Integer, nullable=True)
 
     # Relación 1:1 con Partido
-    #partido = relationship("Partido", back_populates="estadisticas")
+    partido = relationship("Partido", back_populates="estadisticas")
 
     def __repr__(self):
         return f"<EstadisticasPartido(id={self.estadisticas_id}, partido_id={self.partido_id})>"
