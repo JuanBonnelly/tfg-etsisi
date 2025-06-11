@@ -31,7 +31,7 @@ def abreviar_equipo(nombre):
 def main():
     session = get_session()
 
-    # 🏆 Insertar COMPETICIONES (solo última ocurrencia por ID)
+    #  Insertar COMPETICIONES (solo última ocurrencia por ID)
     with open(csv_competitions, newline='', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         ultima_competicion = {}
@@ -61,7 +61,7 @@ def main():
             )
             session.add(equipo)
 
-    # 📅 Insertar TEMPORADAS
+    #  Insertar TEMPORADAS
     with open(csv_seasons, newline='', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         for row in reader:
@@ -73,7 +73,7 @@ def main():
             )
             session.add(temporada)
 
-    # ⚽ Insertar PARTIDOS
+    #  Insertar PARTIDOS
     with open(csv_matches, newline='', encoding='utf-8') as file:
         reader = csv.DictReader(file)
         for row in reader:
@@ -89,10 +89,10 @@ def main():
             )
             session.add(partido)
 
-    # 💾 Guardar cambios
+    #  Guardar cambios
     session.commit()
     session.close()
-    print("✅ Todos los datos han sido cargados correctamente.")
+    print(" Todos los datos han sido cargados correctamente.")
 
 if __name__ == "__main__":
     main()

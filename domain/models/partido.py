@@ -11,25 +11,32 @@ class Partido(Base):
     partido_id = Column(String(20), primary_key=True, nullable=False)
     fecha = Column(Date, nullable=False)
 
-    #equipo_local_id = Column(String(20), ForeignKey('equipo.equipo_id'), nullable=False)
-    #equipo_visitante_id = Column(String(20), ForeignKey('equipo.equipo_id'), nullable=False)
+    equipo_local_id = Column(String(20), ForeignKey('equipo.equipo_id'), nullable=False)
+    equipo_visitante_id = Column(String(20), ForeignKey('equipo.equipo_id'), nullable=False)
 
-    equipo_local_id = Column(String(20),  nullable=False)
-    equipo_visitante_id = Column(String(20),  nullable=False)
+
+    # Temporariamente sin foreing_keys para pruebas
+    #equipo_local_id = Column(String(20),  nullable=False)
+    #equipo_visitante_id = Column(String(20),  nullable=False)
 
     goles_local = Column(Integer, nullable=True)
     goles_visitante = Column(Integer, nullable=True)
 
-    #temporada_id = Column(Integer, ForeignKey('temporada.temporada_id'), nullable=False)
-    #competicion_id = Column(Integer, ForeignKey('competicion.competicion_id'), nullable=False)
-    temporada_id = Column(String(9),nullable=False)
-    competicion_id = Column(Integer, nullable=False)
+    temporada_id = Column(String(9), ForeignKey('temporada.temporada_id'), nullable=False)
+    competicion_id = Column(Integer, ForeignKey('competicion.competicion_id'), nullable=False)
+    
+    
+    # Temporariamente sin foreing_keys para pruebas
+    #temporada_id = Column(String(9),nullable=False)
+    #competicion_id = Column(Integer, nullable=False)
+
+
     # Relaciones ORM
-    #equipo_local = relationship("Equipo", foreign_keys=[equipo_local_id])
-    #equipo_visitante = relationship("Equipo", foreign_keys=[equipo_visitante_id])
-    #temporada = relationship("Temporada")
-    #competicion = relationship("Competicion")
-    #estadisticas = relationship("EstadisticasPartido", uselist=False, back_populates="partido")
+    equipo_local = relationship("Equipo", foreign_keys=[equipo_local_id])
+    equipo_visitante = relationship("Equipo", foreign_keys=[equipo_visitante_id])
+    temporada = relationship("Temporada")
+    competicion = relationship("Competicion")
+    estadisticas = relationship("EstadisticasPartido", uselist=False, back_populates="partido")
 
 
     def __repr__(self):

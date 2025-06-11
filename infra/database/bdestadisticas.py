@@ -43,11 +43,11 @@ def main():
             tarjetas_rojas_local=row.tarjetas_rojas_local,
             tarjetas_rojas_visitante=row.tarjetas_rojas_visitante,
         )
-        session.add(estadistica)  # ✅ Esto debe estar dentro del bucle
+        session.add(estadistica)  #  Esto debe estar dentro del bucle
 
     session.commit()
     session.close()
-    print("✅ Datos insertados correctamente en estadisticas_partido.")
+    print(" Datos insertados correctamente en estadisticas_partido.")
 
 if __name__ == "__main__":
     main()

@@ -9,15 +9,20 @@ class Temporada(Base):
     temporada_id = Column(String(9), primary_key=True, nullable=False)
     año_inicio = Column(Integer, nullable=False)
     año_fin = Column(Integer, nullable=False)
-    competicion_id = Column(Integer, nullable=False)
+    
+    
+    # pruebas sin foreing_keys
+    #competicion_id = Column(Integer, nullable=False)
+    
+    
     # FK hacia Competición
-    #competicion_id = Column(Integer, ForeignKey('competicion.competicion_id'), nullable=False)
+    competicion_id = Column(Integer, ForeignKey('competicion.competicion_id'), nullable=False)
 
     # Relación inversa con Partido
-    #partidos = relationship("Partido", back_populates="temporada")
+    partidos = relationship("Partido", back_populates="temporada")
 
     # Relación directa con Competición
-    #competicion = relationship("Competicion", back_populates="temporadas")
+    competicion = relationship("Competicion", back_populates="temporadas")
     __table_args__ = (
         PrimaryKeyConstraint('temporada_id', 'competicion_id'),
     )
