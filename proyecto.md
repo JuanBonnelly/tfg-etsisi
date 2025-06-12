@@ -180,7 +180,7 @@ Para que podamos avanzar de la manera más efectiva, me gustaría que reflexione
 
 ---
 
-docker/docker-compose.yml
+docker-compose.yml
 
 ```yml
 version: '3.8'
@@ -1812,5 +1812,56 @@ os.makedirs("data", exist_ok=True)
 df.to_csv("data/dataset_partidos_enriquecido.csv", index=False)
 print("Dataset enriquecido guardado como 'data/dataset_partidos_enriquecido.csv'")
 
+
+```
+requirements.txt
+```txt
+
+
+argon2-cffi==23.1.0
+argon2-cffi-bindings==21.2.0
+beautifulsoup4==4.13.3
+bs4==0.0.2
+certifi==2025.1.31
+cffi==1.17.1
+charset-normalizer==3.4.1
+cloudscraper==1.2.71
+colorama==0.4.6
+contourpy==1.3.2
+cycler==0.12.1
+fake-useragent==2.2.0
+fonttools==4.58.0
+greenlet==3.1.1
+idna==3.10
+imbalanced-learn==0.13.0
+joblib==1.5.0
+kiwisolver==1.4.8
+matplotlib==3.10.3
+minio==7.2.15
+mysql-connector-python==9.2.0
+numpy==2.2.4
+packaging==25.0
+pandas==2.2.3
+pillow==11.2.1
+pycparser==2.22
+pycryptodome==3.22.0
+PyMySQL==1.1.1
+pyparsing==3.2.3
+python-dateutil==2.9.0.post0
+python-dotenv==1.1.0
+pytz==2025.2
+requests==2.32.3
+requests-toolbelt==1.0.0
+scikit-learn==1.6.1
+scipy==1.15.3
+six==1.17.0
+sklearn-compat==0.1.3
+soupsieve==2.6
+SQLAlchemy==2.0.40
+threadpoolctl==3.6.0
+tqdm==4.67.1
+typing_extensions==4.13.1
+tzdata==2025.2
+urllib3==2.4.0
 
 ```

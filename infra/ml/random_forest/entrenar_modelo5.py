@@ -1,4 +1,5 @@
 import pandas as pd
+from sklearn.preprocessing import StandardScaler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 from sklearn.model_selection import GridSearchCV
@@ -44,7 +45,9 @@ X_train_bal, y_train_bal = shuffle(X_train_bal, y_train_bal, random_state=42)
 
 print(f"Partidos para entrenamiento (después de oversampling): {len(X_train_bal)}")
 
-
+# Crear scaler sobre el X_train_bal ya balanceado
+scaler = StandardScaler()
+scaler.fit(X_train_bal)
 
 # Definición del modelo con GridSearchCV
 param_grid = {
@@ -87,3 +90,5 @@ print(grid_search.best_params_)
 os.makedirs("modelos", exist_ok=True)
 joblib.dump(model, "modelos/random_forest/modelo_randomforest5.pkl")
 print(" Modelo guardado como 'modelos/random_forest/modelo_randomforest5.pkl'")
+joblib.dump(scaler, "modelos/random_forest/scaler_randomforest5.pkl")
+print("Scaler guardado como 'modelos/random_forest/scaler_randomforest5.pkl'")
