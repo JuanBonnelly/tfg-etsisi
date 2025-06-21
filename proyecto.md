@@ -1865,3 +1865,1086 @@ tzdata==2025.2
 urllib3==2.4.0
 
 ```
+---
+backend/repositories/partido_repository.py
+```py
+# backend/repositories/partido_repository.py
+from sqlalchemy.orm import Session
+from sqlalchemy import and_, or_
+from typing import List, Optional, Tuple
+from datetime import date
+
+# Importa tus modelos ORM
+from domain.models.partido import Partido
+from domain.models.estadisticas_partido import EstadisticasPartido # Asegura la importación
+
+class PartidoRepository:
+    def __init__(self, db_session: Session):
+        self.db_session = db_session
+
+    def get_historical_matches_with_stats(self, team_id: str, before_date: date, limit: Optional[int] = None) -> List[Tuple[Partido, Optional[EstadisticasPartido]]]:
+        """
+        Obtiene partidos históricos para un equipo con sus estadísticas, antes de una fecha específica.
+        Retorna una lista de tuplas (Partido, EstadisticasPartido).
+        """
+        query = self.db_session.query(Partido, EstadisticasPartido).\
+            outerjoin(EstadisticasPartido, Partido.partido_id == EstadisticasPartido.partido_id).\
+            filter(
+                or_(Partido.equipo_local_id == team_id, Partido.equipo_visitante_id == team_id),
+                Partido.fecha < before_date
+            ).\
+            order_by(Partido.fecha.desc())
+
+        if limit:
+            query = query.limit(limit)
+
+        return query.all()
+
+    def get_h2h_matches_with_stats(self, team1_id: str, team2_id: str, before_date: date, limit: Optional[int] = None) -> List[Tuple[Partido, Optional[EstadisticasPartido]]]:
+        """
+        Obtiene enfrentamientos directos (H2H) entre dos equipos con sus estadísticas, antes de una fecha específica.
+        Retorna una lista de tuplas (Partido, EstadisticasPartido).
+        """
+        query = self.db_session.query(Partido, EstadisticasPartido).\
+            outerjoin(EstadisticasPartido, Partido.partido_id == EstadisticasPartido.partido_id).\
+            filter(
+                or_(
+                    and_(Partido.equipo_local_id == team1_id, Partido.equipo_visitante_id == team2_id),
+                    and_(Partido.equipo_local_id == team2_id, Partido.equipo_visitante_id == team1_id)
+                ),
+                Partido.fecha < before_date
+            ).\
+            order_by(Partido.fecha.desc())
+
+        if limit:
+            query = query.limit(limit)
+
+        return query.all()
+
+    def get_team_home_matches_with_stats(self, team_id: str, before_date: date) -> List[Tuple[Partido, Optional[EstadisticasPartido]]]:
+        """
+        Obtiene partidos históricos donde un equipo fue local, con sus estadísticas.
+        """
+        query = self.db_session.query(Partido, EstadisticasPartido).\
+            outerjoin(EstadisticasPartido, Partido.partido_id == EstadisticasPartido.partido_id).\
+            filter(
+                Partido.equipo_local_id == team_id,
+                Partido.fecha < before_date
+            ).\
+            order_by(Partido.fecha.desc())
+        return query.all()
+
+    # Puedes añadir un método para obtener las estadísticas del partido actual si las necesitaras en las features
+    # def get_match_stats_by_id(self, partido_id: str) -> Optional[EstadisticasPartido]:
+    #     return self.db_session.query(EstadisticasPartido).filter(EstadisticasPartido.partido_id == partido_id).first()
+
+
+```
+---
+backend/repositories/team_repository.py
+```py
+
+# backend/repositories/team_repository.py
+from sqlalchemy.orm import Session
+from typing import List, Optional
+
+# Importa tu modelo ORM Equipo
+from domain.models.equipo import Equipo
+
+class TeamRepository:
+    def __init__(self, db_session: Session):
+        self.db_session = db_session
+
+    def get_all_teams(self) -> List[Equipo]:
+        """Obtiene todos los equipos de la base de datos, ordenados por nombre."""
+        return self.db_session.query(Equipo).order_by(Equipo.nombre).all()
+
+    def get_team_by_name(self, name: str) -> Optional[Equipo]:
+        """Obtiene un equipo por su nombre."""
+        return self.db_session.query(Equipo).filter(Equipo.nombre == name).first()
+
+    def get_team_by_id(self, team_id: str) -> Optional[Equipo]:
+        """Obtiene un equipo por su ID."""
+        return self.db_session.query(Equipo).filter(Equipo.equipo_id == team_id).first()
+
+```
+---
+backend/services/prediction_service.py
+```py
+
+# backend/services/prediction_service.py
+import pandas as pd
+import numpy as np
+from sqlalchemy.orm import Session
+# Asegúrate que el tipo de clasificador coincide con tu modelo cargado (.pkl)
+# Tu docker-compose.yml apunta a 'modelo_randomforest5.pkl', por lo que usamos RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
+# Si tu modelo cargado es MLPClassifier, usa:
+# from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+from typing import Dict, Any, List, Optional, Tuple, Union # Añadido Union para el type hinting del modelo
+from datetime import date
+
+from backend.repositories.partido_repository import PartidoRepository
+from backend.repositories.team_repository import TeamRepository
+# No es necesario importar Partido o EstadisticasPartido aquí directamente,
+# ya que vienen como tuplas desde el repositorio.
+# from domain.models.partido import Partido
+# from domain.models.estadisticas_partido import EstadisticasPartido
+
+class PredictionService:
+    # Esta lista debe ser EXACTAMENTE la que usa tu modelo entrenado.
+    # Obtén la lista 'features' de tu script 'entrenar_modelo5.py' (o el que usaste para el modelo final).
+    _MODEL_FEATURES = [
+        "media_ult10_posesion_local", "media_ult10_posesion_visitante",
+        "media_ult10_corners_local", "media_ult10_corners_visitante",
+        "media_ult10_tarjetas_amarillas_local", "media_ult10_tarjetas_amarillas_visitante",
+        "media_ult10_tarjetas_rojas_local", "media_ult10_tarjetas_rojas_visitante",
+        "media_h2h_posesion_local", "media_h2h_posesion_visitante",
+        "media_h2h_corners_local", "media_h2h_corners_visitante",
+        "media_h2h_tarjetas_amarillas_local", "media_h2h_tarjetas_amarillas_visitante",
+        "media_h2h_tarjetas_rojas_local", "media_h2h_tarjetas_rojas_visitante",
+        "tendencia_empate_h2h",
+        "media_hist_posesion_local", "media_hist_posesion_visitante",
+        "media_hist_corners_local", "media_hist_corners_visitante",
+        "media_hist_tarjetas_amarillas_local", "media_hist_tarjetas_amarillas_visitante",
+        "media_hist_tarjetas_rojas_local", "media_hist_tarjetas_rojas_visitante",
+        "media_ult10_diferencia_goles_local", "media_ult10_diferencia_goles_visitante",
+        "media_h2h_diferencia_goles_local", "media_h2h_diferencia_goles_visitante",
+        "media_hist_diferencia_goles_local", "media_hist_diferencia_goles_visitante",
+        "racha_ganados_local_ult5", "racha_ganados_visitante_ult5",
+        "diferencia_posesion", "diferencia_corners",
+        "diferencia_tarjetas_amarillas", "diferencia_tarjetas_rojas",
+        "media_hist_goles_local_a_favor", "media_hist_goles_local_en_contra",
+        "racha_empates_local_ult5", "racha_derrotas_local_ult5",
+        "racha_empates_visitante_ult5", "racha_derrotas_visitante_ult5",
+        "goles_local_ult5_media", "goles_visitante_ult5_media",
+        "tendencia_empate_local", "tendencia_empate_visitante"
+    ]
+
+    def __init__(self, db_session: Session):
+        self.partido_repo = PartidoRepository(db_session)
+        self.team_repo = TeamRepository(db_session)
+
+    def _get_match_result(self, partido: Any, team_id: str) -> int:
+        """Calcula el resultado (1:victoria, 0:empate, -1:derrota) para un equipo en un partido."""
+        if partido.goles_local == partido.goles_visitante:
+            return 0  # Empate
+        if partido.equipo_local_id == team_id:
+            return 1 if partido.goles_local > partido.goles_visitante else -1
+        else: # team_id era visitante
+            return 1 if partido.goles_visitante > partido.goles_local else -1
+
+    def _calculate_team_match_stats(self, partido: Any, stats: Any, team_id: str) -> Dict[str, Any]:
+        """
+        Extrae las estadísticas de un partido para un equipo específico,
+        manejando si el equipo era local o visitante en ese partido.
+        """
+        if not stats: # Si no hay estadísticas para este partido, retorna un diccionario con Nones
+            return {
+                "goles_a_favor": partido.goles_local if partido.equipo_local_id == team_id else partido.goles_visitante,
+                "goles_en_contra": partido.goles_visitante if partido.equipo_local_id == team_id else partido.goles_local,
+                "posesion": np.nan, "corners": np.nan, "tarjetas_amarillas": np.nan,
+                "tarjetas_rojas": np.nan, "es_local": (partido.equipo_local_id == team_id),
+                "resultado": self._get_match_result(partido, team_id)
+            }
+        
+        # Lógica para extraer las stats específicas del equipo en cuestión
+        if partido.equipo_local_id == team_id:
+            return {
+                "goles_a_favor": partido.goles_local,
+                "goles_en_contra": partido.goles_visitante,
+                "posesion": stats.posesion_local,
+                "corners": stats.corners_local,
+                "tarjetas_amarillas": stats.tarjetas_amarillas_local,
+                "tarjetas_rojas": stats.tarjetas_rojas_local,
+                "es_local": True,
+                "resultado": self._get_match_result(partido, team_id)
+            }
+        else: # equipo_visitante_id == team_id
+            return {
+                "goles_a_favor": partido.goles_visitante,
+                "goles_en_contra": partido.goles_local,
+                "posesion": stats.posesion_visitante,
+                "corners": stats.corners_visitante,
+                "tarjetas_amarillas": stats.tarjetas_amarillas_visitante,
+                "tarjetas_rojas": stats.tarjetas_rojas_visitante,
+                "es_local": False,
+                "resultado": self._get_match_result(partido, team_id)
+            }
+
+    def _get_team_historical_data(self, team_id: str, match_date: date, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Recopila datos históricos de partidos y estadísticas para un equipo,
+        transformándolos a un formato uniforme (goles_a_favor, posesion etc. para ESE equipo).
+        """
+        matches_with_stats = self.partido_repo.get_historical_matches_with_stats(team_id, match_date, limit=limit)
+        processed_data = []
+        for partido, stats in matches_with_stats:
+            processed_data.append(self._calculate_team_match_stats(partido, stats, team_id))
+        return processed_data
+
+    def _get_h2h_historical_data(self, team1_id: str, team2_id: str, match_date: date, limit: Optional[int] = None) -> List[Dict[str, Any]]:
+        """
+        Recopila datos históricos de enfrentamientos directos (H2H) entre dos equipos,
+        transformándolos a un formato uniforme.
+        """
+        matches_with_stats = self.partido_repo.get_h2h_matches_with_stats(team1_id, team2_id, match_date, limit=limit)
+        processed_data = []
+        for partido, stats in matches_with_stats:
+            if stats: # Si hay estadísticas para el H2H
+                processed_data.append({
+                    "local_goles": partido.goles_local,
+                    "visitor_goles": partido.goles_visitante,
+                    "local_posesion": stats.posesion_local,
+                    "visitor_posesion": stats.posesion_visitante,
+                    "local_corners": stats.corners_local,
+                    "visitor_corners": stats.corners_visitante,
+                    "local_tarjetas_amarillas": stats.tarjetas_amarillas_local,
+                    "visitor_tarjetas_amarillas": stats.tarjetas_amarillas_visitante,
+                    "local_tarjetas_rojas": stats.tarjetas_rojas_local,
+                    "visitor_tarjetas_rojas": stats.tarjetas_rojas_visitante,
+                    "resultado_local_perspective": self._get_match_result(partido, team1_id), # Resultado desde la perspectiva de team1
+                })
+            else: # Si no hay stats para un H2H, rellenar con NaNs para mantener la longitud de la lista
+                processed_data.append({key: np.nan for key in [
+                    "local_goles", "visitor_goles", "local_posesion", "visitor_posesion",
+                    "local_corners", "visitor_corners", "local_tarjetas_amarillas",
+                    "visitor_tarjetas_amarillas", "local_tarjetas_rojas", "visitor_tarjetas_rojas",
+                    "resultado_local_perspective"
+                ]})
+        return processed_data
+
+    def _calculate_average_stats(self, data: List[Dict[str, Any]], stat_key: str) -> float:
+        """Calcula la media de una estadística de una lista de diccionarios de partidos."""
+        # Filtra solo valores numéricos válidos (no None o NaN)
+        values = [d[stat_key] for d in data if d.get(stat_key) is not None and not np.isnan(d[stat_key])]
+        return np.mean(values) if values else np.nan
+
+    def _calculate_average_h2h_stats(self, data: List[Dict[str, Any]], stat_key_local: str, stat_key_visitor: str) -> Tuple[float, float]:
+        """Calcula la media de estadísticas locales y visitantes de una lista de diccionarios H2H."""
+        local_values = [d[stat_key_local] for d in data if d.get(stat_key_local) is not None and not np.isnan(d[stat_key_local])]
+        visitor_values = [d[stat_key_visitor] for d in data if d.get(stat_key_visitor) is not None and not np.isnan(d[stat_key_visitor])]
+        return np.mean(local_values) if local_values else np.nan, np.mean(visitor_values) if visitor_values else np.nan
+
+    def _calculate_avg_goal_diff(self, data: List[Dict[str, Any]]) -> float:
+        """Calcula la media de la diferencia de goles (goles_a_favor - goles_en_contra) para un equipo en una lista de partidos."""
+        diffs = [d["goles_a_favor"] - d["goles_en_contra"] for d in data if d.get("goles_a_favor") is not None and d.get("goles_en_contra") is not None]
+        return np.mean(diffs) if diffs else np.nan
+
+    def _calculate_racha(self, data: List[Dict[str, Any]], result_type: int) -> int:
+        """Calcula la racha de victorias, empates o derrotas en una lista de partidos."""
+        count = 0
+        for d in data:
+            if d.get("resultado") is not None and d["resultado"] == result_type:
+                count += 1
+            else:
+                break # La racha se rompe si el resultado no es el esperado o no es None
+        return count
+
+    def _calculate_features_for_single_match(
+        self,
+        local_team_id: str,
+        visitor_team_id: str,
+        match_date: date
+    ) -> Optional[pd.DataFrame]:
+        """
+        Calcula todas las características para un *único* partido,
+        replicando la lógica de features_engineering.py pero consultando la DB.
+        """
+        features = {}
+
+        # --- Recopilar datos históricos ---
+        local_ult10_data = self._get_team_historical_data(local_team_id, match_date, limit=10)
+        visitor_ult10_data = self._get_team_historical_data(visitor_team_id, match_date, limit=10)
+        h2h_data = self._get_h2h_historical_data(local_team_id, visitor_team_id, match_date, limit=10) # team1_id es local_team_id en H2H
+        
+        # Históricos completos (sin límite)
+        local_hist_data = self._get_team_historical_data(local_team_id, match_date)
+        visitor_hist_data = self._get_team_historical_data(visitor_team_id, match_date)
+        
+        # Últimos 5 partidos para rachas (subconjunto de los últimos 10)
+        local_ult5_data = local_ult10_data[:5]
+        visitor_ult5_data = visitor_ult10_data[:5]
+
+
+        # --- Fase 1: medias de últimos 10 partidos (local y visitante) ---
+        for stat in ["posesion", "corners", "tarjetas_amarillas", "tarjetas_rojas"]:
+            features[f"media_ult10_{stat}_local"] = self._calculate_average_stats(local_ult10_data, stat)
+            features[f"media_ult10_{stat}_visitante"] = self._calculate_average_stats(visitor_ult10_data, stat)
+
+        # --- Fase 2: medias de últimos 10 enfrentamientos directos (H2H) ---
+        for stat in ["posesion", "corners", "tarjetas_amarillas", "tarjetas_rojas"]:
+            local_avg, visitor_avg = self._calculate_average_h2h_stats(h2h_data, f"local_{stat}", f"visitor_{stat}")
+            features[f"media_h2h_{stat}_local"] = local_avg
+            features[f"media_h2h_{stat}_visitante"] = visitor_avg
+        
+        # Tendencia de empate H2H (usa resultado_local_perspective)
+        if h2h_data:
+            empates_h2h = sum(1 for d in h2h_data if d.get("resultado_local_perspective") == 0)
+            features["tendencia_empate_h2h"] = empates_h2h / len(h2h_data)
+        else:
+            features["tendencia_empate_h2h"] = np.nan
+
+        # --- Fase 3: medias históricas acumuladas (local y visitante) ---
+        for stat in ["posesion", "corners", "tarjetas_amarillas", "tarjetas_rojas"]:
+            features[f"media_hist_{stat}_local"] = self._calculate_average_stats(local_hist_data, stat)
+            features[f"media_hist_{stat}_visitante"] = self._calculate_average_stats(visitor_hist_data, stat)
+
+        # --- Fase 4: diferencia de goles en todos los contextos ---
+        features["media_ult10_diferencia_goles_local"] = self._calculate_avg_goal_diff(local_ult10_data)
+        features["media_ult10_diferencia_goles_visitante"] = self._calculate_avg_goal_diff(visitor_ult10_data)
+
+        # Para H2H, usa los arrays de diferencias calculados en _calculate_h2h_historical_stats si es posible
+        # o re-calcula las diferencias para la perspectiva H2H aquí.
+        # En la implementación actual, h2h_data ya tiene local_goles/visitor_goles.
+        h2h_diffs_local = [d["local_goles"] - d["visitor_goles"] for d in h2h_data if d.get("local_goles") is not None and d.get("visitor_goles") is not None]
+        h2h_diffs_visitor = [d["visitor_goles"] - d["local_goles"] for d in h2h_data if d.get("local_goles") is not None and d.get("visitor_goles") is not None]
+        features["media_h2h_diferencia_goles_local"] = np.mean(h2h_diffs_local) if h2h_diffs_local else np.nan
+        features["media_h2h_diferencia_goles_visitante"] = np.mean(h2h_diffs_visitor) if h2h_diffs_visitor else np.nan
+
+        features["media_hist_diferencia_goles_local"] = self._calculate_avg_goal_diff(local_hist_data)
+        features["media_hist_diferencia_goles_visitante"] = self._calculate_avg_goal_diff(visitor_hist_data)
+
+        # --- Fase 5: rachas + diferencias de estadísticas + ventaja histórica en casa + tendencias de empate ---
+        
+        # Rachas de victorias, empates, derrotas (últimos 5)
+        features["racha_ganados_local_ult5"] = self._calculate_racha(local_ult5_data, 1)
+        features["racha_empates_local_ult5"] = self._calculate_racha(local_ult5_data, 0)
+        features["racha_derrotas_local_ult5"] = self._calculate_racha(local_ult5_data, -1)
+        
+        features["racha_ganados_visitante_ult5"] = self._calculate_racha(visitor_ult5_data, 1)
+        features["racha_empates_visitante_ult5"] = self._calculate_racha(visitor_ult5_data, 0)
+        features["racha_derrotas_visitante_ult5"] = self._calculate_racha(visitor_ult5_data, -1)
+
+        # Diferencias de estadísticas (basadas en medias ult10)
+        # Estas deben calcularse SIEMPRE, incluso si las medias son NaN, el resultado de la diferencia será NaN.
+        features["diferencia_posesion"] = features["media_ult10_posesion_local"] - features["media_ult10_posesion_visitante"]
+        features["diferencia_corners"] = features["media_ult10_corners_local"] - features["media_ult10_corners_visitante"]
+        features["diferencia_tarjetas_amarillas"] = features["media_ult10_tarjetas_amarillas_local"] - features["media_ult10_tarjetas_amarillas_visitante"]
+        features["diferencia_tarjetas_rojas"] = features["media_ult10_tarjetas_rojas_local"] - features["media_ult10_tarjetas_rojas_visitante"]
+        
+        # Media de goles a favor/en contra históricas (solo cuando el equipo fue local)
+        # Esta lógica está bien. local_hist_data ya tiene la info de 'es_local'.
+        local_home_matches = [d for d in local_hist_data if d.get("es_local")]
+        features["media_hist_goles_local_a_favor"] = self._calculate_average_stats(local_home_matches, "goles_a_favor")
+        features["media_hist_goles_local_en_contra"] = self._calculate_average_stats(local_home_matches, "goles_en_contra")
+        
+        # Ojo: la feature "media_hist_goles_local_en_contra" en tu features_engineering.py original
+        # parece que se calcula solo para los partidos donde el equipo LOCAL es el local.
+        # Pero si tu modelo espera también media_hist_goles_VISITANTE_a_favor y _en_contra,
+        # tendrías que replicar la lógica para el equipo visitante.
+        # De momento, nos quedamos con las que tienes en _MODEL_FEATURES.
+
+        # Media de goles en últimos 5 partidos (a favor)
+        features["goles_local_ult5_media"] = self._calculate_average_stats(local_ult5_data, "goles_a_favor")
+        features["goles_visitante_ult5_media"] = self._calculate_average_stats(visitor_ult5_data, "goles_a_favor")
+
+        # Tendencia de empate (últimos 10 partidos)
+        # Revisa que 'resultado' está presente en los diccionarios de local_ult10_data
+        if local_ult10_data:
+            empates_local = sum(1 for d in local_ult10_data if d.get("resultado") == 0)
+            features["tendencia_empate_local"] = empates_local / len(local_ult10_data)
+        else:
+            features["tendencia_empate_local"] = np.nan
+
+        if visitor_ult10_data:
+            empates_visitante = sum(1 for d in visitor_ult10_data if d.get("resultado") == 0)
+            features["tendencia_empate_visitante"] = empates_visitante / len(visitor_ult10_data)
+        else:
+            features["tendencia_empate_visitante"] = np.nan
+
+
+        # Crear DataFrame con una sola fila
+        features_df = pd.DataFrame([features])
+        
+        # Reindexar las columnas para que coincidan con el orden de _MODEL_FEATURES
+        # Esto es crucial para el modelo ML
+        features_df = features_df.reindex(columns=self._MODEL_FEATURES)
+
+        # Imputar valores NaN si tu modelo lo requiere (ej. con 0 o la media de entrenamiento)
+        # ¡Esto debe coincidir con cómo manejaste los NaNs durante el entrenamiento!
+        # Asumimos que el modelo fue entrenado con NaNs imputados a 0.
+        features_df = features_df.fillna(0) 
+
+        return features_df
+
+    def predict_match_result(
+        self,
+        local_team_name: str,
+        visitor_team_name: str,
+        match_date: date,
+        # Usamos Union para especificar los posibles tipos del modelo, más robusto que Any
+        ml_model: Union[RandomForestClassifier, Any], # Asumiendo que Any cubre otros clasificadores si cambias
+        scaler: StandardScaler
+    ) -> Tuple[str, Dict[str, float]]:
+        """
+        Predice el resultado de un partido y sus probabilidades.
+        """
+        local_team = self.team_repo.get_team_by_name(local_team_name)
+        visitor_team = self.team_repo.get_team_by_name(visitor_team_name)
+
+        if not local_team:
+            raise ValueError(f"Equipo local '{local_team_name}' no encontrado.")
+        if not visitor_team:
+            raise ValueError(f"Equipo visitante '{visitor_team_name}' no encontrado.")
+
+        # Calcular las características para el partido
+        features_df = self._calculate_features_for_single_match(
+            local_team.equipo_id, visitor_team.equipo_id, match_date
+        )
+
+        # Si el DataFrame de features está vacío o todos sus valores son NaN (ej. no hay datos históricos suficientes)
+        if features_df is None or features_df.empty or features_df.isnull().all().all():
+            raise ValueError("No se pudieron generar las características para la predicción. Faltan datos históricos o son insuficientes para ambos equipos.")
+
+        # Escalar las características
+        features_scaled = scaler.transform(features_df)
+
+        # Realizar predicción y obtener probabilidades
+        predicted_class = ml_model.predict(features_scaled)[0]
+        probabilities = ml_model.predict_proba(features_scaled)[0]
+
+        # Mapear la clase predicha a un resultado legible
+        result_map = {1: "Victoria Local", 0: "Empate", -1: "Victoria Visitante"}
+        
+        # Mapear probabilidades a un diccionario legible
+        # Asegúrate de que las clases del modelo estén en el orden correcto
+        # Esto es CRÍTICO: ml_model.classes_ devuelve un array con el orden de las clases (ej. [-1, 0, 1])
+        class_labels = ml_model.classes_ 
+        
+        prob_dict = {
+            result_map.get(label, str(label)): float(prob)
+            for label, prob in zip(class_labels, probabilities)
+        }
+        
+        # Asegurarse de que el orden de las probabilidades en prob_dict sea consistente para el frontend
+        # Si las clases de ml_model.classes_ son siempre [-1, 0, 1], este orden es consistente.
+        ordered_prob_dict = {
+            "Victoria Local": prob_dict.get("Victoria Local", 0.0),
+            "Empate": prob_dict.get("Empate", 0.0),
+            "Victoria Visitante": prob_dict.get("Victoria Visitante", 0.0),
+        }
+
+        return result_map.get(predicted_class, "Desconocido"), ordered_prob_dict
+
+```
+---
+backend/services/team_services.py
+```py
+
+# backend/services/team_service.py
+from typing import List, Optional
+from sqlalchemy.orm import Session
+
+# Importa el repositorio y el esquema de respuesta
+from backend.repositories.team_repository import TeamRepository
+from backend.schemas import TeamResponse
+
+class TeamService:
+    def __init__(self, db_session: Session):
+        self.team_repo = TeamRepository(db_session)
+
+    def get_teams_list(self) -> List[TeamResponse]:
+        """
+        Obtiene la lista de todos los equipos y los formatea como TeamResponse.
+        """
+        teams = self.team_repo.get_all_teams()
+        return [TeamResponse.model_validate(team) for team in teams]
+
+    def get_team_id_by_name(self, team_name: str) -> Optional[str]:
+        """
+        Busca un equipo por su nombre y retorna su ID si existe.
+        """
+        team = self.team_repo.get_team_by_name(team_name)
+        return team.equipo_id if team else None
+
+
+```
+---
+backend/test/test_prediction_api.py
+```py
+
+# backend/tests/test_prediction_api.py
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker, Session
+import os
+import numpy as np
+from datetime import date, timedelta
+from dotenv import load_dotenv
+from unittest.mock import MagicMock, patch
+
+# Importa la aplicación FastAPI y tus modelos ORM
+from backend.main import app
+from backend.dependencies import get_db_session, get_prediction_pipeline
+
+from domain.models.base import Base
+from domain.models.equipo import Equipo
+from domain.models.partido import Partido
+from domain.models.estadisticas_partido import EstadisticasPartido
+from domain.models.competicion import Competicion
+from domain.models.temporada import Temporada
+
+# Cargar variables de entorno para la conexión a la DB de test
+load_dotenv()
+
+# --- Configuración para la base de datos de TEST en MySQL ---
+TEST_DB_USER = os.getenv("TEST_DB_USER", os.getenv("DB_USER", "admin"))
+TEST_DB_PASSWORD = os.getenv("TEST_DB_PASSWORD", os.getenv("DB_PASSWORD", "admin"))
+TEST_DB_HOST = os.getenv("TEST_DB_HOST", "localhost")
+TEST_DB_PORT = os.getenv("TEST_DB_PORT", "3307")
+TEST_DB_NAME = os.getenv("TEST_DB_NAME", "futbol_tfg_test")
+
+SQLALCHEMY_DATABASE_URL = (
+    f"mysql+mysqlconnector://{TEST_DB_USER}:{TEST_DB_PASSWORD}@{TEST_DB_HOST}:{TEST_DB_PORT}/{TEST_DB_NAME}"
+)
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# --- Override de la dependencia de sesión de DB para usar la DB de test ---
+def override_get_db_session():
+    db = TestingSessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+app.dependency_overrides[get_db_session] = override_get_db_session
+
+# --- Mocks para el modelo ML (inicialización segura al nivel del módulo) ---
+mock_model_instance = MagicMock()
+mock_scaler_instance = MagicMock()
+
+# Configura los mocks para que se comporten como tu modelo espera.
+mock_model_instance.classes_ = np.array([-1, 0, 1])
+mock_model_instance.predict.return_value = np.array([1])
+mock_model_instance.predict_proba.return_value = np.array([[0.1, 0.2, 0.7]])
+
+# --- Fixtures de Pytest (DEBEN ESTAR DEFINIDAS AQUÍ, AL PRINCIPIO DEL MÓDULO) ---
+@pytest.fixture(name="db_session_pred_test")
+def db_session_pred_test_fixture():
+    """
+    Fixture de pytest que proporciona una sesión de base de datos MySQL limpia para cada test.
+    TRUNCA todas las tablas relevantes antes de cada test.
+    """
+    db = TestingSessionLocal()
+    try:
+        db.execute(text("SET FOREIGN_KEY_CHECKS = 0"))
+        db.execute(text("TRUNCATE TABLE estadisticas_partido"))
+        db.execute(text("TRUNCATE TABLE partido"))
+        db.execute(text("TRUNCATE TABLE temporada"))
+        db.execute(text("TRUNCATE TABLE competicion"))
+        db.execute(text("TRUNCATE TABLE equipo"))
+        db.execute(text("SET FOREIGN_KEY_CHECKS = 1"))
+        db.commit()
+        yield db
+    finally:
+        db.close()
+
+@pytest.fixture(autouse=True)
+def setup_ml_mocks_globally():
+    """
+    Fixture que parchea las variables globales de modelo y scaler en dependencies.py
+    para que apunten a los mocks, y simula la carga de artefactos ML.
+    Se ejecuta automáticamente para todos los tests en este módulo.
+    """
+    with patch('backend.dependencies.ml_model', new=mock_model_instance), \
+         patch('backend.dependencies.scaler', new=mock_scaler_instance), \
+         patch('backend.dependencies.load_ml_artifacts', MagicMock(return_value=(mock_model_instance, mock_scaler_instance))):
+        yield
+
+@pytest.fixture # <--- ¡NUEVA FIXTURE PARA EL CLIENTE DE TEST!
+def client():
+    """
+    Fixture que proporciona una instancia de TestClient para la aplicación FastAPI.
+    Pytest inyectará esta instancia en cualquier función de test que la solicite.
+    """
+    return TestClient(app)
+
+# --- Función auxiliar para cargar datos de prueba (NO ES UNA FIXTURE) ---
+def setup_common_data(db_session: Session):
+    """
+    Carga datos comunes necesarios para la mayoría de los tests de predicción.
+    Estos datos son suficientes para que las features se calculen (al menos sin NaNs).
+    """
+    # Competicion
+    comp = Competicion(competicion_id=9, nombre="Premier League", abreviatura="PL")
+    db_session.add(comp)
+    db_session.commit()
+
+    # Temporada
+    temp = Temporada(temporada_id="2023-2024", año_inicio=2023, año_fin=2024, competicion_id=9)
+    db_session.add(temp)
+    db_session.commit()
+
+    # Equipos
+    team_arsenal = Equipo(equipo_id="ARS", nombre="Arsenal", abreviatura="ARS")
+    team_spurs = Equipo(equipo_id="TOT", nombre="Tottenham", abreviatura="TOT")
+    team_chelsea = Equipo(equipo_id="CHE", nombre="Chelsea", abreviatura="CHE")
+    db_session.add_all([team_arsenal, team_spurs, team_chelsea])
+    db_session.commit()
+
+    # Generar datos históricos para que las features no sean todas NaN
+    today = date.today()
+    for i in range(1, 16):
+        p = Partido(
+            partido_id=f"P_ARS_{i}", fecha=today - timedelta(days=i*10),
+            equipo_local_id="ARS", equipo_visitante_id="CHE" if i%2==0 else "TOT",
+            goles_local=i%3 + 1, goles_visitante=(i+1)%3, temporada_id="2023-2024", competicion_id=9
+        )
+        ep = EstadisticasPartido(
+            partido_id=f"P_ARS_{i}", posesion_local=50.0 + (i%5), posesion_visitante=50.0 - (i%5),
+            corners_local=5 + i%2, corners_visitante=3 + i%3, tarjetas_amarillas_local=1,
+            tarjetas_amarillas_visitante=1, tarjetas_rojas_local=0, tarjetas_rojas_visitante=0
+        )
+        db_session.add_all([p, ep])
+
+    for i in range(1, 16):
+        p = Partido(
+            partido_id=f"P_TOT_{i}", fecha=today - timedelta(days=i*10 + 5),
+            equipo_local_id="TOT", equipo_visitante_id="CHE" if i%2!=0 else "ARS",
+            goles_local=(i+1)%3 + 1, goles_visitante=i%3, temporada_id="2023-2024", competicion_id=9
+        )
+        ep = EstadisticasPartido(
+            partido_id=f"P_TOT_{i}", posesion_local=45.0 + (i%5), posesion_visitante=55.0 - (i%5),
+            corners_local=4 + i%2, corners_visitante=2 + i%3, tarjetas_amarillas_local=0,
+            tarjetas_amarillas_visitante=2, tarjetas_rojas_local=0, tarjetas_rojas_visitante=0
+        )
+        db_session.add_all([p, ep])
+    
+    for i in range(1, 11):
+        p_h2h_ars = Partido(
+            partido_id=f"H2H_ARS_TOT_{i}", fecha=today - timedelta(days=i*30 + 100),
+            equipo_local_id="ARS", equipo_visitante_id="TOT",
+            goles_local=2 + (i%2), goles_visitante=1 + (i%2), temporada_id="2023-2024", competicion_id=9
+        )
+        ep_h2h_ars = EstadisticasPartido(
+            partido_id=f"H2H_ARS_TOT_{i}", posesion_local=55.0 + (i%3), posesion_visitante=45.0 - (i%3),
+            corners_local=6, corners_visitante=2, tarjetas_amarillas_local=1,
+            tarjetas_amarillas_visitante=1, tarjetas_rojas_local=0, tarjetas_rojas_visitante=0
+        )
+        db_session.add_all([p_h2h_ars, ep_h2h_ars])
+
+        p_h2h_tot = Partido(
+            partido_id=f"H2H_TOT_ARS_{i}", fecha=today - timedelta(days=i*30 + 150),
+            equipo_local_id="TOT", equipo_visitante_id="ARS",
+            goles_local=1 + (i%2), goles_visitante=2 + (i%2), temporada_id="2023-2024", competicion_id=9
+        )
+        ep_h2h_tot = EstadisticasPartido(
+            partido_id=f"H2H_TOT_ARS_{i}", posesion_local=40.0 + (i%3), posesion_visitante=60.0 - (i%3),
+            corners_local=3, corners_visitante=5, tarjetas_amarillas_local=0,
+            tarjetas_amarillas_visitante=2, tarjetas_rojas_local=0, tarjetas_rojas_visitante=0
+        )
+        db_session.add_all([p_h2h_tot, ep_h2h_tot])
+        
+    db_session.commit()
+
+
+# --- Funciones de Test ---
+def test_predict_match_success_mocked_ml_pipeline(client, db_session_pred_test: Session):
+    """
+    Test que mockea el pipeline ML (modelo y scaler) y permite
+    que la lógica de cálculo de features se ejecute realmente.
+    """
+    mock_scaler_instance.transform.return_value = np.array([[0.5] * 47])
+
+    setup_common_data(db_session_pred_test)
+
+    request_body = {
+        "local_team_name": "Arsenal",
+        "visitor_team_name": "Tottenham",
+        "match_date": "2024-05-15"
+    }
+    response = client.post("/predict", json=request_body)
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["predicted_result"] == "Victoria Local"
+    assert data["probabilities"]["Victoria Local"] == pytest.approx(0.7)
+    assert data["probabilities"]["Empate"] == pytest.approx(0.2)
+    assert data["probabilities"]["Victoria Visitante"] == pytest.approx(0.1)
+
+    mock_model_instance.predict.assert_called_once()
+    mock_scaler_instance.transform.assert_called_once()
+
+
+def test_predict_match_team_not_found(client, db_session_pred_test: Session):
+    """
+    Test que verifica el manejo de error cuando un equipo no se encuentra.
+    """
+    setup_common_data(db_session_pred_test)
+
+    request_body = {
+        "local_team_name": "EquipoInexistente",
+        "visitor_team_name": "Tottenham",
+        "match_date": "2024-05-15"
+    }
+    response = client.post("/predict", json=request_body)
+    assert response.status_code == 400
+    assert "Equipo local 'EquipoInexistente' no encontrado." in response.json()["detail"]
+
+
+def test_predict_match_insufficient_historical_data(client, db_session_pred_test: Session):
+    """
+    Test que verifica el comportamiento de la API cuando no hay suficientes datos históricos
+    para calcular las features (ej. equipos nuevos o partidos muy antiguos).
+    Según la Opción A, la API debe devolver 200 OK y una predicción (basada en features imputadas a 0).
+    """
+    # 1. Preparar datos mínimos: solo añadir los equipos, sin historial de partidos.
+    team_new = Equipo(equipo_id="NEW", nombre="Equipo Nuevo", abreviatura="NEW")
+    team_old = Equipo(equipo_id="OLD", nombre="Equipo Viejo", abreviatura="OLD")
+    db_session_pred_test.add_all([team_new, team_old])
+    db_session_pred_test.commit()
+
+    # 2. Definir el cuerpo de la solicitud
+    request_body = {
+        "local_team_name": "Equipo Nuevo",
+        "visitor_team_name": "Equipo Viejo",
+        "match_date": "2024-05-15"
+    }
+
+    # 3. Realizar la solicitud a la API
+    response = client.post("/predict", json=request_body)
+
+    # 4. Asertar el comportamiento esperado (según Opción A: 200 OK)
+    assert response.status_code == 200 # <--- ¡CAMBIO CRUCIAL AQUÍ!
+    
+    # Opcional: También puedes verificar el contenido de la respuesta si es relevante
+    data = response.json()
+    assert "predicted_result" in data
+    assert "probabilities" in data
+    # Si sabes qué predicción da tu modelo para un vector de ceros, puedes asertarla aquí.
+    # Por ejemplo, si un vector de ceros siempre predice "Empate" con 0.5 de prob:
+    # assert data["predicted_result"] == "Empate"
+    # assert data["probabilities"]["Empate"] == pytest.approx(0.5)
+
+
+```
+---
+backend/test/test_teams_api.py
+```py
+
+    # backend/tests/test_teams_api.py
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker, Session
+import os
+from dotenv import load_dotenv
+
+# Importa la aplicación FastAPI y tus modelos ORM
+from backend.main import app
+from backend.dependencies import get_db_session
+from domain.models.base import Base # Necesario para crear/dropear tablas
+from domain.models.equipo import Equipo # Modelo que vamos a testear
+
+# Cargar variables de entorno para la conexión a la DB de test
+load_dotenv()
+
+# --- Configuración para la base de datos de TEST en MySQL ---
+# Usaremos una base de datos MySQL específica para tests para aislar los datos.
+# Estas variables se leerán de .env o del entorno del Docker Compose si lo configuras
+TEST_DB_USER = os.getenv("TEST_DB_USER", os.getenv("DB_USER", "admin"))
+TEST_DB_PASS = os.getenv("TEST_DB_PASS", os.getenv("DB_PASS", "admin"))
+TEST_DB_HOST = os.getenv("TEST_DB_HOST", os.getenv("DB_HOST", "localhost"))
+TEST_DB_PORT = os.getenv("TEST_DB_PORT", os.getenv("DB_PORT", "3307")) # Usar el puerto mapeado por Docker Compose
+TEST_DB_NAME = os.getenv("TEST_DB_NAME", "futbol_TFG_test") # Nombre de la DB de test
+
+SQLALCHEMY_DATABASE_URL = (
+    f"mysql+mysqlconnector://{TEST_DB_USER}:{TEST_DB_PASS}@{TEST_DB_HOST}:{TEST_DB_PORT}/{TEST_DB_NAME}"
+)
+
+# Crea un engine y sessionmaker para la DB de test
+# Es crucial que la DB `futbol_TFG_test` exista en tu servidor MySQL.
+# Puedes crearla manualmente o añadir un script para ello.
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# --- Override de la dependencia de sesión de DB para usar la DB de test ---
+def override_get_db_session():
+    """
+    Dependencia que proporciona una sesión de DB para los tests, conectándose a MySQL de test.
+    """
+    db = TestingSessionLocal()
+    try:
+        yield db # El test se ejecuta aquí
+    finally:
+        db.close()
+
+# Aplica el override a la dependencia global de FastAPI
+app.dependency_overrides[get_db_session] = override_get_db_session
+
+# Cliente de test para la aplicación FastAPI
+client = TestClient(app)
+
+@pytest.fixture(name="db_session_test")
+def db_session_test_fixture():
+    """
+    Fixture de pytest que proporciona una sesión de base de datos limpia para cada test.
+    TRUNCA las tablas y carga datos mínimos.
+    """
+    db = TestingSessionLocal()
+    try:
+        # Limpiar tablas antes de cada test (¡cuidado con la tabla de producción!)
+        # Es importante TRUNCATE y no DROP_ALL/CREATE_ALL si quieres reusar la DB.
+        # Asegúrate de que tu DB de test (`futbol_TFG_test`) solo tenga las tablas necesarias.
+        db.execute("TRUNCATE TABLE equipo") # Limpia la tabla equipo
+        db.commit() # Commit de la limpieza
+
+        yield db # El test se ejecuta aquí
+
+        # Opcional: limpiar de nuevo al final, pero TRUNCATE al inicio suele ser suficiente
+        # db.execute("TRUNCATE TABLE equipo")
+        # db.commit()
+    finally:
+        db.close()
+
+def test_get_teams_empty(db_session_test: Session):
+    """
+    Verifica que el endpoint /teams retorna una lista vacía si no hay equipos.
+    """
+    response = client.get("/teams")
+    assert response.status_code == 200
+    assert response.json() == []
+
+def test_get_teams_with_data(db_session_test: Session):
+    """
+    Verifica que el endpoint /teams retorna los equipos correctamente.
+    """
+    # Insertar algunos equipos de prueba directamente en la DB de test
+    team1 = Equipo(equipo_id="FCB", nombre="FC Barcelona", abreviatura="BAR")
+    team2 = Equipo(equipo_id="RMA", nombre="Real Madrid", abreviatura="RMA")
+    team3 = Equipo(equipo_id="ATM", nombre="Atlético de Madrid", abreviatura="ATM")
+    db_session_test.add(team1)
+    db_session_test.add(team2)
+    db_session_test.add(team3)
+    db_session_test.commit()
+
+    response = client.get("/teams")
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data) == 3
+
+    # Verificar que los datos se devuelven correctamente y ordenados por nombre
+    expected_names = ["Atlético de Madrid", "FC Barcelona", "Real Madrid"]
+    actual_names = [t["name"] for t in data]
+    assert actual_names == expected_names
+
+    assert data[0]["team_id"] == "ATM"
+    assert data[0]["abreviatura"] == "ATM"
+
+
+```
+---
+backend/main.py
+```py
+
+# backend/main.py (VERSION FINAL - para Tarea 2.5)
+from fastapi import FastAPI, Depends, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
+from typing import List, Dict, Optional, Tuple
+from datetime import date
+
+# Importaciones de tus módulos del backend
+from backend.dependencies import get_db_session, load_ml_artifacts, get_prediction_pipeline
+from backend.services.team_service import TeamService
+from backend.services.prediction_service import PredictionService # ¡NUEVA IMPORTACIÓN!
+from backend.schemas import TeamResponse, PredictionRequest, PredictionResponse
+
+# Importaciones de los tipos de modelos ML para type hinting
+from sklearn.neural_network import MLPClassifier
+from sklearn.preprocessing import StandardScaler
+
+# --- Configuración de la aplicación FastAPI ---
+app = FastAPI(
+    title="API de Predicción de Partidos de Fútbol",
+    description="API para predecir resultados de partidos de fútbol usando Machine Learning.",
+    version="1.0.0"
+)
+
+# Configurar CORS (ajusta origins según tu frontend)
+origins = [
+    "http://localhost",
+    "http://localhost:4200",
+    "http://127.0.0.1:4200",
+    # Añade aquí la URL de tu frontend en producción
+]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# --- Endpoints ---
+
+@app.get("/")
+async def root():
+    return {"message": "API de Predicción de Fútbol iniciada. Visita /docs para la documentación."}
+
+@app.get("/teams", response_model=List[TeamResponse])
+async def get_teams(db_session: Session = Depends(get_db_session)):
+    """
+    Obtiene una lista de todos los equipos disponibles en la base de datos.
+    """
+    team_service = TeamService(db_session)
+    teams = team_service.get_teams_list()
+    return teams
+
+@app.post("/predict", response_model=PredictionResponse) # Ya no es 501 NOT IMPLEMENTED
+async def predict_match(
+    request: PredictionRequest,
+    db_session: Session = Depends(get_db_session),
+    ml_pipeline: Tuple[MLPClassifier, StandardScaler] = Depends(get_prediction_pipeline)
+):
+    """
+    Predice el resultado de un partido entre dos equipos dados.
+    """
+    ml_model, scaler = ml_pipeline
+    prediction_service = PredictionService(db_session)
+
+    try:
+        predicted_result_str, probabilities = prediction_service.predict_match_result(
+            request.local_team_name,
+            request.visitor_team_name,
+            request.match_date or date.today(), # Usa la fecha actual si no se proporciona
+            ml_model,
+            scaler
+        )
+        return PredictionResponse(
+            predicted_result=predicted_result_str,
+            probabilities=probabilities
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        print(f"Error inesperado en /predict: {e}") # Para depuración
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Error interno del servidor: {e}")
+
+# --- Eventos de la aplicación ---
+@app.on_event("startup")
+async def startup_event():
+    print("Aplicación FastAPI iniciada. Cargando recursos...")
+    load_ml_artifacts()
+    print("Modelo ML y Scaler cargados (si las rutas son correctas y los archivos existen).")
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    print("Aplicación FastAPI cerrada.")
+```
+---
+
+
+---
+backend/dependencies.py
+```py
+
+# backend/dependencies.py
+import joblib
+import os
+from sklearn.neural_network import MLPClassifier # Importa el tipo de tu modelo
+from sklearn.preprocessing import StandardScaler # Importa el tipo de tu scaler
+from sqlalchemy.orm import Session
+from typing import Optional, Tuple
+
+# Importa tu función de conexión a la base de datos
+from infra.database.mysql_connect import get_session
+
+# Rutas a los modelos ML (se obtienen de las variables de entorno de Docker Compose)
+ML_MODEL_PATH = os.getenv("ML_MODEL_PATH")
+SCALER_PATH = os.getenv("SCALER_PATH")
+
+# Variables globales para almacenar el modelo y el scaler cargados
+ml_model: Optional[MLPClassifier] = None
+scaler: Optional[StandardScaler] = None
+
+def load_ml_artifacts():
+    """
+    Carga el modelo de ML y el scaler una única vez al inicio de la aplicación.
+    """
+    global ml_model, scaler
+    if ml_model is None or scaler is None:
+        try:
+            print(f"Cargando modelo ML desde: {ML_MODEL_PATH}")
+            ml_model = joblib.load(ML_MODEL_PATH)
+            print(f"Cargando scaler desde: {SCALER_PATH}")
+            scaler = joblib.load(SCALER_PATH)
+            print("Modelo ML y Scaler cargados exitosamente.")
+        except FileNotFoundError as e:
+            print(f"ERROR: Archivo de modelo o scaler no encontrado. Verifica las rutas en docker-compose.yml y Dockerfile.backend. Error: {e}")
+            raise RuntimeError(f"Error al cargar recursos ML: {e}. Asegúrate de que los archivos existan en el path esperado dentro del contenedor.")
+        except Exception as e:
+            print(f"ERROR: Error inesperado al cargar recursos ML: {e}")
+            raise RuntimeError(f"Error inesperado al cargar recursos ML: {e}")
+    return ml_model, scaler
+
+def get_db_session() -> Session:
+    """
+    Dependencia de FastAPI para obtener una sesión de base de datos.
+    Asegura que la sesión se cierra automáticamente después de la solicitud.
+    """
+    session = get_session()
+    try:
+        yield session
+    finally:
+        session.close()
+
+def get_prediction_pipeline() -> Tuple[MLPClassifier, StandardScaler]:
+    """
+    Dependencia de FastAPI que proporciona el modelo ML y el scaler cargados.
+    Debe ser llamada después de que `load_ml_artifacts` haya inicializado las variables globales.
+    """
+    if ml_model is None or scaler is None:
+        raise RuntimeError("Modelo ML o Scaler no disponibles. Verificar logs de startup.")
+    return ml_model, scaler
+
+```
+---
+
+
+---
+backend/schemas.py
+```py
+
+        from pydantic import BaseModel, Field
+from typing import Dict, Optional
+from datetime import date
+
+# --- Schemas para Equipo (lectura) ---
+class TeamResponse(BaseModel):
+    equipo_id: str = Field(..., description="ID único del equipo (ej. 'ARS', 'RMA')")
+    nombre: str = Field(..., description="Nombre completo del equipo (ej. 'Arsenal')")
+    abreviatura: str = Field(..., description="Abreviatura del equipo (ej. 'ARS')")
+
+    class Config:
+        from_attributes = True  # Usado en Pydantic v2 en lugar de orm_mode = True
+
+
+# --- Schemas para Predicción ---
+class PredictionRequest(BaseModel):
+    local_team_name: str = Field(..., alias="equipo_local", description="Nombre del equipo local")
+    visitor_team_name: str = Field(..., alias="equipo_visitante", description="Nombre del equipo visitante")
+    match_date: Optional[date] = Field(None, description="Fecha del partido (opcional, para contexto histórico de features)")
+
+    class Config:
+        populate_by_name = True  # Permite usar los aliases al crear instancias con nombre de campos originales
+
+
+class PredictionResponse(BaseModel):
+    predicted_result: str = Field(..., description="Resultado predicho: 'Victoria Local', 'Empate' o 'Victoria Visitante'")
+    probabilities: Dict[str, float] = Field(..., description="Probabilidades de cada resultado (Victoria Local, Empate, Victoria Visitante)")
+
+    # Descomenta si implementas explicaciones SHAP
+    # shap_values: Optional[Dict[str, float]] = None
+    # base_value: Optional[float] = None
+
+
+```
+---

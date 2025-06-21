@@ -9,6 +9,7 @@ from domain.models.competicion import Competicion
 from domain.models.equipo import Equipo
 from domain.models.temporada import Temporada
 from domain.models.partido import Partido
+from domain.models.estadisticas_partido import EstadisticasPartido
 
 # Rutas de los CSV
 csv_competitions = "data/datosFbref/fbref_competitions_202505141101.csv"
