@@ -19,17 +19,17 @@ load_dotenv()
 # Usaremos una base de datos MySQL específica para tests para aislar los datos.
 # Estas variables se leerán de .env o del entorno del Docker Compose si lo configuras
 TEST_DB_USER = os.getenv("TEST_DB_USER", os.getenv("DB_USER", "admin"))
-TEST_DB_PASS = os.getenv("TEST_DB_PASS", os.getenv("DB_PASS", "admin"))
+TEST_DB_PASSWORD = os.getenv("TEST_DB_PASSWORD", os.getenv("DB_PASSWORD", "admin"))
 TEST_DB_HOST = os.getenv("TEST_DB_HOST", os.getenv("DB_HOST", "localhost"))
 TEST_DB_PORT = os.getenv("TEST_DB_PORT", os.getenv("DB_PORT", "3307")) # Usar el puerto mapeado por Docker Compose
-TEST_DB_NAME = os.getenv("TEST_DB_NAME", "futbol_TFG_test") # Nombre de la DB de test
+TEST_DB_NAME = os.getenv("TEST_DB_NAME", "futbol_tfg_test") # Nombre de la DB de test
 
 SQLALCHEMY_DATABASE_URL = (
-    f"mysql+mysqlconnector://{TEST_DB_USER}:{TEST_DB_PASS}@{TEST_DB_HOST}:{TEST_DB_PORT}/{TEST_DB_NAME}"
+    f"mysql+mysqlconnector://{TEST_DB_USER}:{TEST_DB_PASSWORD}@{TEST_DB_HOST}:{TEST_DB_PORT}/{TEST_DB_NAME}"
 )
 
 # Crea un engine y sessionmaker para la DB de test
-# Es crucial que la DB `futbol_TFG_test` exista en tu servidor MySQL.
+# Es crucial que la DB `futbol_tfg_test` exista en tu servidor MySQL.
 # Puedes crearla manualmente o añadir un script para ello.
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -61,7 +61,7 @@ def db_session_test_fixture():
     try:
         # Limpiar tablas antes de cada test (¡cuidado con la tabla de producción!)
         # Es importante TRUNCATE y no DROP_ALL/CREATE_ALL si quieres reusar la DB.
-        # Asegúrate de que tu DB de test (`futbol_TFG_test`) solo tenga las tablas necesarias.
+        # Asegúrate de que tu DB de test (`futbol_tfg_test`) solo tenga las tablas necesarias.
         db.execute("TRUNCATE TABLE equipo") # Limpia la tabla equipo
         db.commit() # Commit de la limpieza
 

@@ -32,9 +32,9 @@ class Partido(Base):
 
 
     # Relaciones ORM
-    equipo_local = relationship("Equipo", foreign_keys=[equipo_local_id])
-    equipo_visitante = relationship("Equipo", foreign_keys=[equipo_visitante_id])
-    temporada = relationship("Temporada")
+    equipo_local = relationship("Equipo", back_populates="partidos_local", foreign_keys=[equipo_local_id])
+    equipo_visitante = relationship("Equipo", back_populates="partidos_visitante", foreign_keys=[equipo_visitante_id])
+    temporada = relationship("Temporada", back_populates="partidos")
     competicion = relationship("Competicion")
     estadisticas = relationship("EstadisticasPartido", uselist=False, back_populates="partido")
 
