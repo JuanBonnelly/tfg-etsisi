@@ -1,7 +1,69 @@
 <!-- src/app/components/prediction-interface/prediction-interface.html -->
 
-<div style="padding: 2rem; text-align: center; font-family: sans-serif;">
-  <h1>¡Hola, Mundo!</h1>
-  <p>Si ves este mensaje, el componente <strong>PredictionInterfaceComponent</strong> se ha cargado correctamente.</p>
-  <p>La Tarea 3.1 está completada y lista para continuar.</p>
+
+<div class="container">
+  <h1>Predictor de Partidos de Fútbol</h1>
+  
+  <!-- El formulario llama a onSubmit() cuando se envía. #predictionForm es una referencia local. -->
+  <form (ngSubmit)="onSubmit()" #predictionForm="ngForm">
+    <div class="form-row">
+      <!-- Selector Equipo Local -->
+      <div class="form-group">
+        <label for="homeTeam">Equipo Local</label>
+        <!-- [(ngModel)] conecta este select con la variable selectedHomeTeamName -->
+        <select id="homeTeam" name="homeTeam" [(ngModel)]="selectedHomeTeamName" required>
+          <option [ngValue]="null" disabled>Selecciona un equipo</option>
+          <!-- *ngFor recorre la lista de equipos para crear las opciones -->
+          <option *ngFor="let team of teams" [value]="team.nombre">{{ team.nombre }}</option>
+        </select>
+      </div>
+
+      <span class="vs-separator">VS</span>
+
+      <!-- Selector Equipo Visitante -->
+      <div class="form-group">
+        <label for="awayTeam">Equipo Visitante</label>
+        <select id="awayTeam" name="awayTeam" [(ngModel)]="selectedAwayTeamName" required>
+          <option [ngValue]="null" disabled>Selecciona un equipo</option>
+          <option *ngFor="let team of teams" [value]="team.nombre">{{ team.nombre }}</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="form-row">
+      <!-- Selector de Fecha -->
+      <div class="form-group date-group">
+        <label for="predictionDate">Fecha del Partido</label>
+        <input type="date" id="predictionDate" name="predictionDate" [(ngModel)]="predictionDate" required>
+      </div>
+    </div>
+
+    <!-- El botón se deshabilita si el formulario no es válido o si está cargando -->
+    <button type="submit" [disabled]="!predictionForm.form.valid || isLoading">
+      <!-- Cambiamos el texto del botón si está cargando -->
+      {{ isLoading ? 'Prediciendo...' : 'Predecir Resultado' }}
+    </button>
+  </form>
+
+  <!-- Contenedor de Resultados y Errores -->
+  <div class="results-area">
+    <!-- Mensaje de Error (solo se muestra si errorMessage tiene un valor) -->
+    <div *ngIf="errorMessage" class="error-message">
+      <p><strong>Error:</strong> {{ errorMessage }}</p>
+    </div>
+
+    <!-- Resultados (solo se muestra si predictionResult tiene un valor) -->
+    <div *ngIf="predictionResult" class="results-container">
+      <h2>Resultado de la Predicción</h2>
+      <div class="prediction-winner">
+        {{ predictionResult.predicted_result }}
+      </div>
+      <div class="probabilities">
+        <h3>Probabilidades</h3>
+        <p>Victoria Local (1): <strong>{{ (predictionResult.probabilities['Victoria Local'] * 100).toFixed(1) }}%</strong></p>
+        <p>Empate (X): <strong>{{ (predictionResult.probabilities['Empate'] * 100).toFixed(1) }}%</strong></p>
+        <p>Victoria Visitante (2): <strong>{{ (predictionResult.probabilities['Victoria Visitante'] * 100).toFixed(1) }}%</strong></p>
+      </div>
+    </div>
+  </div>
 </div>
