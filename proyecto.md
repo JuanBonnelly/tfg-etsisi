@@ -2948,3 +2948,600 @@ class PredictionResponse(BaseModel):
 
 ```
 ---
+
+---
+src/index.html
+```html
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>TfgFrontend</title>
+  <base href="/">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" type="image/x-icon" href="favicon.ico">
+</head>
+<body>
+  <app-root></app-root>
+</body>
+</html>
+
+```
+---
+---
+src/main.ts
+```ts
+import { bootstrapApplication } from '@angular/platform-browser';
+import { appConfig } from './app/app.config';
+import { App } from './app/app';
+
+bootstrapApplication(App, appConfig)
+  .catch((err) => console.error(err));
+
+```
+---
+---
+src/styles.scss
+```scss
+/* You can add global styles to this file, and also import other style files */
+
+```
+---
+---
+src/app/app.config.ts
+```ts
+import { ApplicationConfig, provideBrowserGlobalErrorListeners, provideZoneChangeDetection, importProvidersFrom  } from '@angular/core';
+import { provideRouter } from '@angular/router';
+import { provideHttpClient } from '@angular/common/http';
+
+import { routes } from './app.routes';
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideBrowserGlobalErrorListeners(),
+    provideZoneChangeDetection({ eventCoalescing: true }),
+    provideRouter(routes),
+    provideHttpClient() 
+  ]
+};
+
+```
+---
+---
+src/app/app.html
+```html
+<!-- src/app/app.html -->
+<app-prediction-interface></app-prediction-interface>
+```
+---
+---
+src/app/app.routes.ts
+```ts
+import { Routes } from '@angular/router';
+
+export const routes: Routes = [];
+
+```
+---
+---
+src/app/app.scss
+```scss
+
+```
+---
+---
+src/app/app.spec.ts
+```ts
+import { TestBed } from '@angular/core/testing';
+import { App } from './app';
+
+describe('App', () => {
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [App],
+    }).compileComponents();
+  });
+
+  it('should create the app', () => {
+    const fixture = TestBed.createComponent(App);
+    const app = fixture.componentInstance;
+    expect(app).toBeTruthy();
+  });
+
+  it('should render title', () => {
+    const fixture = TestBed.createComponent(App);
+    fixture.detectChanges();
+    const compiled = fixture.nativeElement as HTMLElement;
+    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, tfg-frontend');
+  });
+});
+
+```
+---
+---
+src/app/app.ts
+```ts
+import { Component } from '@angular/core';
+import { RouterOutlet } from '@angular/router';
+import { PredictionInterfaceComponent } from './components/prediction-interface/prediction-interface';
+
+
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [RouterOutlet,  PredictionInterfaceComponent],
+  templateUrl: './app.html',
+  styleUrl: './app.scss'
+})
+export class App {
+  protected title = 'tfg-frontend';
+}
+
+```
+---
+---
+src/app/components/prediction-interface/prediction-interface.html
+```html
+<!-- src/app/components/prediction-interface/prediction-interface.html -->
+
+
+<div class="container">
+  <h1>Predictor de Partidos de Fútbol</h1>
+  
+  <!-- El formulario llama a onSubmit() cuando se envía. #predictionForm es una referencia local. -->
+  <form (ngSubmit)="onSubmit()" #predictionForm="ngForm">
+    <div class="form-row">
+      <!-- Selector Equipo Local -->
+      <div class="form-group">
+        <label for="homeTeam">Equipo Local</label>
+        <!-- [(ngModel)] conecta este select con la variable selectedHomeTeamName -->
+        <select id="homeTeam" name="homeTeam" [(ngModel)]="selectedHomeTeamName" required>
+          <option [ngValue]="null" disabled>Selecciona un equipo</option>
+          <!-- *ngFor recorre la lista de equipos para crear las opciones -->
+          <option *ngFor="let team of teams" [value]="team.nombre">{{ team.nombre }}</option>
+        </select>
+      </div>
+
+      <span class="vs-separator">VS</span>
+
+      <!-- Selector Equipo Visitante -->
+      <div class="form-group">
+        <label for="awayTeam">Equipo Visitante</label>
+        <select id="awayTeam" name="awayTeam" [(ngModel)]="selectedAwayTeamName" required>
+          <option [ngValue]="null" disabled>Selecciona un equipo</option>
+          <option *ngFor="let team of teams" [value]="team.nombre">{{ team.nombre }}</option>
+        </select>
+      </div>
+    </div>
+    
+    <div class="form-row">
+      <!-- Selector de Fecha -->
+      <div class="form-group date-group">
+        <label for="predictionDate">Fecha del Partido</label>
+        <input type="date" id="predictionDate" name="predictionDate" [(ngModel)]="predictionDate" required>
+      </div>
+    </div>
+
+    <!-- El botón se deshabilita si el formulario no es válido o si está cargando -->
+    <button type="submit" [disabled]="!predictionForm.form.valid || isLoading">
+      <span *ngIf="!isLoading">Predecir Resultado</span>
+      <span *ngIf="isLoading">Prediciendo...</span>
+    </button>
+  </form>
+
+  <!-- Contenedor de Resultados y Errores -->
+  <div class="results-area">
+    <!-- Mensaje de Error (solo se muestra si errorMessage tiene un valor) -->
+    <div *ngIf="errorMessage" class="error-message">
+      <p><strong>Error:</strong> {{ errorMessage }}</p>
+    </div>
+
+    <!-- Resultados (solo se muestra si predictionResult tiene un valor) -->
+    <div *ngIf="predictionResult" class="results-container">
+      <h2>Resultado de la Predicción</h2>
+      <div class="prediction-winner">
+        {{ predictionResult.predicted_result }}
+      </div>
+      <div class="probabilities">
+        <h3>Probabilidades</h3>
+        <p>Victoria Local (1): <strong>{{ (predictionResult.probabilities['Victoria Local'] * 100).toFixed(1) }}%</strong></p>
+        <p>Empate (X): <strong>{{ (predictionResult.probabilities['Empate'] * 100).toFixed(1) }}%</strong></p>
+        <p>Victoria Visitante (2): <strong>{{ (predictionResult.probabilities['Victoria Visitante'] * 100).toFixed(1) }}%</strong></p>
+      </div>
+    </div>
+  </div>
+</div>
+
+```
+---
+---
+src/app/components/prediction-interface/prediction-interface.scss
+```scss
+/* src/app/components/prediction-interface/prediction-interface.scss  */
+
+// Definimos los colores como variables de SASS (con $)
+$primary-color: #007bff;
+$success-color: #28a745;
+$error-color: #dc3545;
+$light-gray: #f8f9fa;
+$gray: #6c757d;
+$border-radius: 8px;
+$box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+
+.container {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background-color: #fff;
+  border-radius: $border-radius;
+  box-shadow: $box-shadow;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  
+  h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 2rem;
+  }
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  
+  .vs-separator {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: $gray;
+  }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+
+  label {
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+    color: #555;
+  }
+
+  select, input[type="date"] {
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: $border-radius;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+
+    &:focus {
+      outline: none;
+      border-color: $primary-color;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+  }
+}
+
+.date-group {
+  flex-grow: 0;
+  width: 100%;
+}
+
+button[type="submit"] {
+  padding: 1rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #fff;
+  background-color: $primary-color;
+  border: none;
+  border-radius: $border-radius;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  // Ahora 'darken' puede funcionar porque $primary-color es un color real para SASS
+  &:hover:not(:disabled) {
+    background-color: darken($primary-color, 10%);
+  }
+
+  &:disabled {
+    background-color: lighten($primary-color, 20%); // Usamos lighten para el estado deshabilitado
+    cursor: not-allowed;
+  }
+}
+
+.results-area {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.message {
+  padding: 1rem;
+  border-radius: $border-radius;
+  margin-bottom: 1rem;
+  border: 1px solid;
+}
+
+.error-message {
+  color: #721c24;
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+}
+
+.results-container {
+  background-color: $light-gray;
+  border-color: #ddd;
+  
+  .prediction-winner {
+    font-size: 2rem;
+    font-weight: bold;
+    color: $primary-color;
+    margin-bottom: 1rem;
+  }
+  
+  .probabilities {
+    h3 {
+      margin-bottom: 0.5rem;
+    }
+    p {
+      margin: 0.25rem 0;
+      color: $gray;
+    }
+  }
+}
+
+// Spinner de carga con CSS puro
+.spinner-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border-left-color: $primary-color; // Sigue funcionando con variables de SASS
+  animation: spin 1s ease infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+```
+---
+---
+src/app/components/prediction-interface/prediction-interface.spec.ts
+```ts
+import { ComponentFixture, TestBed } from '@angular/core/testing';
+
+import { PredictionInterfaceComponent } from './prediction-interface';
+
+describe('PredictionInterface', () => {
+  let component: PredictionInterfaceComponent;
+  let fixture: ComponentFixture<PredictionInterfaceComponent>;
+
+  beforeEach(async () => {
+    await TestBed.configureTestingModule({
+      imports: [PredictionInterfaceComponent]
+    })
+    .compileComponents();
+
+    fixture = TestBed.createComponent(PredictionInterfaceComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should create', () => {
+    expect(component).toBeTruthy();
+  });
+});
+
+```
+---
+---
+src/app/components/prediction-interface/prediction-interface.ts
+```ts
+import { Component, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+
+// Importa los modelos que necesitaremos (aunque solo sea para tipado)
+import { Team, PredictionRequest, PredictionResponse } from '../../models/api.models';
+// Importa el servicio que vamos a usar
+import { ApiService } from '../../services/api';
+
+@Component({
+  selector: 'app-prediction-interface',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  templateUrl: './prediction-interface.html',
+  styleUrl: './prediction-interface.scss'
+})
+// Implementamos la interfaz OnInit para usar el gancho de ciclo de vida ngOnInit
+export class PredictionInterfaceComponent implements OnInit {
+
+  // Creamos una propiedad para guardar los equipos
+  teams: Team[] = [];
+  predictionResult: PredictionResponse | null = null; // Almacenará el resultado de la predicción
+
+   // --- Propiedades para el estado del formulario (vinculadas con ngModel) ---
+  selectedHomeTeamName: string | null = null;
+  selectedAwayTeamName: string | null = null;
+  // Fecha de hoy en formato YYYY-MM-DD para el input de fecha
+  predictionDate: string = new Date().toISOString().split('T')[0];
+
+  // --- Propiedades para la Experiencia de Usuario (UX) ---
+  isLoading = false; // Para mostrar un spinner o deshabilitar el botón
+  errorMessage: string | null = null; // Para mostrar mensajes de error
+
+  // Paso 1: Inyectamos el ApiService en el constructor.
+  // Angular se encarga de crear la instancia y pasárnosla.
+  constructor(private apiService: ApiService) { }
+
+  // Paso 2: ngOnInit se ejecuta automáticamente una vez cuando el componente se inicializa.
+  // Es el lugar perfecto para cargar datos iniciales.
+  ngOnInit(): void {
+    console.log('Componente inicializado. Llamando a getTeams()...');
+
+    this.apiService.getTeams().subscribe({
+      // Esto se ejecuta si la llamada a la API tiene éxito
+      next: (data) => {
+        this.teams = data;
+      },
+      // Esto se ejecuta si hay un error en la llamada
+      error: (err) => {
+        console.error('¡ERROR! No se pudieron obtener los equipos:', err);
+        // Aquí podríamos mostrar un mensaje de error al usuario en el futuro
+      }
+    });
+  }
+  // --- Método que se ejecuta al enviar el formulario ---
+  onSubmit(): void {
+    // 1. Validaciones básicas en el frontend
+    if (!this.selectedHomeTeamName || !this.selectedAwayTeamName) {
+      this.errorMessage = 'Por favor, selecciona ambos equipos.';
+      return;
+    }
+    if (this.selectedHomeTeamName === this.selectedAwayTeamName) {
+      this.errorMessage = 'El equipo local y el visitante no pueden ser el mismo.';
+      return;
+    }
+
+    // 2. Preparar el estado para una nueva petición
+    this.isLoading = true;
+    this.errorMessage = null;
+    this.predictionResult = null;
+
+    // 3. Crear el objeto de la petición para la API
+    const request: PredictionRequest = {
+      local_team_name: this.selectedHomeTeamName,
+      visitor_team_name: this.selectedAwayTeamName,
+      match_date: this.predictionDate
+    };
+
+    // 4. Llamar al servicio de la API
+    this.apiService.predictMatch(request).subscribe({
+      next: (response) => {
+        // ¡Éxito! Guardamos el resultado y paramos la carga
+        this.predictionResult = response;
+        this.isLoading = false;
+      },
+      error: (err) => {
+        // ¡Error! Mostramos el mensaje del backend y paramos la carga
+        console.error('Error en la predicción:', err);
+        // El error.error.detail es donde FastAPI suele poner los mensajes de HTTPException
+        this.errorMessage = err.error?.detail || 'Ocurrió un error inesperado al predecir.';
+        this.isLoading = false;
+      }
+    });
+  }
+}
+```
+---
+---
+src/app/models/api.models.ts
+```ts
+// src/app/models/api.models.ts
+
+export interface Team {
+  equipo_id: string;
+  nombre: string;
+  abreviatura: string;
+}
+
+export interface PredictionRequest {
+  local_team_name: string;
+  visitor_team_name: string;
+  match_date: string; // Formato 'YYYY-MM-DD'
+}
+
+export interface PredictionResponse {
+  predicted_result: string; // 'Victoria Local', 'Empate', o 'Victoria Visitante'
+  probabilities: {
+    'Victoria Local': number;
+    'Empate': number;
+    'Victoria Visitante': number;
+  };
+}
+```
+---
+---
+src/app/services/api.spec.ts
+```ts
+import { TestBed } from '@angular/core/testing';
+
+import { Api } from './api';
+
+describe('Api', () => {
+  let service: Api;
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({});
+    service = TestBed.inject(Api);
+  });
+
+  it('should be created', () => {
+    expect(service).toBeTruthy();
+  });
+});
+
+```
+---
+---
+src/app/services/api.ts
+```ts
+import { Injectable } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable } from 'rxjs';
+
+// Importamos los modelos de datos que definimos en la Tarea 3.1
+import { Team, PredictionRequest, PredictionResponse } from '../models/api.models';
+
+@Injectable({
+  providedIn: 'root' // Esto hace que el servicio esté disponible en toda la aplicación
+})
+export class ApiService {
+
+  // La URL base de nuestro backend. ¡Asegúrate de que tu backend corre en el puerto 8000!
+  private readonly apiUrl = 'http://localhost:8000';
+
+  // Angular nos "inyecta" el cliente HTTP a través del constructor.
+  // Esto es la magia de la Inyección de Dependencias.
+  constructor(private http: HttpClient) { }
+
+  /**
+   * Obtiene la lista completa de equipos desde el endpoint /teams.
+   * @returns Un Observable que emitirá un array de objetos Team.
+   */
+  getTeams(): Observable<Team[]> {
+    // Hacemos una petición GET a http://localhost:8000/teams
+    // El <Team[]> le dice a TypeScript qué tipo de datos esperamos recibir.
+    return this.http.get<Team[]>(`${this.apiUrl}/teams`);
+  }
+
+  /**
+   * Envía una petición de predicción al endpoint /predict.
+   * @param request El objeto con los datos del partido a predecir.
+   * @returns Un Observable que emitirá un objeto PredictionResponse.
+   */
+  predictMatch(request: PredictionRequest): Observable<PredictionResponse> {
+    // Hacemos una petición POST a http://localhost:8000/predict
+    // El segundo argumento 'request' se enviará como el cuerpo (body) de la petición en formato JSON.
+    return this.http.post<PredictionResponse>(`${this.apiUrl}/predict`, request);
+  }
+}
+```
+---

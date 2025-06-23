@@ -1,0 +1,163 @@
+/* src/app/components/prediction-interface/prediction-interface.scss  */
+
+// Definimos los colores como variables de SASS (con $)
+$primary-color: #007bff;
+$success-color: #28a745;
+$error-color: #dc3545;
+$light-gray: #f8f9fa;
+$gray: #6c757d;
+$border-radius: 8px;
+$box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+
+.container {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 2rem;
+  background-color: #fff;
+  border-radius: $border-radius;
+  box-shadow: $box-shadow;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  
+  h1 {
+    text-align: center;
+    color: #333;
+    margin-bottom: 2rem;
+  }
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  
+  .vs-separator {
+    font-size: 1.5rem;
+    font-weight: bold;
+    color: $gray;
+  }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
+
+  label {
+    margin-bottom: 0.5rem;
+    font-weight: bold;
+    color: #555;
+  }
+
+  select, input[type="date"] {
+    padding: 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: $border-radius;
+    font-size: 1rem;
+    transition: border-color 0.2s;
+
+    &:focus {
+      outline: none;
+      border-color: $primary-color;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+  }
+}
+
+.date-group {
+  flex-grow: 0;
+  width: 100%;
+}
+
+button[type="submit"] {
+  padding: 1rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #fff;
+  background-color: $primary-color;
+  border: none;
+  border-radius: $border-radius;
+  cursor: pointer;
+  transition: background-color 0.2s;
+
+  // Ahora 'darken' puede funcionar porque $primary-color es un color real para SASS
+  &:hover:not(:disabled) {
+    background-color: darken($primary-color, 10%);
+  }
+
+  &:disabled {
+    background-color: lighten($primary-color, 20%); // Usamos lighten para el estado deshabilitado
+    cursor: not-allowed;
+  }
+}
+
+.results-area {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+.message {
+  padding: 1rem;
+  border-radius: $border-radius;
+  margin-bottom: 1rem;
+  border: 1px solid;
+}
+
+.error-message {
+  color: #721c24;
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
+}
+
+.results-container {
+  background-color: $light-gray;
+  border-color: #ddd;
+  
+  .prediction-winner {
+    font-size: 2rem;
+    font-weight: bold;
+    color: $primary-color;
+    margin-bottom: 1rem;
+  }
+  
+  .probabilities {
+    h3 {
+      margin-bottom: 0.5rem;
+    }
+    p {
+      margin: 0.25rem 0;
+      color: $gray;
+    }
+  }
+}
+
+// Spinner de carga con CSS puro
+.spinner-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem;
+}
+
+.spinner {
+  border: 4px solid rgba(0, 0, 0, 0.1);
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border-left-color: $primary-color; // Sigue funcionando con variables de SASS
+  animation: spin 1s ease infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
