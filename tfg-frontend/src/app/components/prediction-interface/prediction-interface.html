@@ -40,8 +40,8 @@
 
     <!-- El botón se deshabilita si el formulario no es válido o si está cargando -->
     <button type="submit" [disabled]="!predictionForm.form.valid || isLoading">
-      <!-- Cambiamos el texto del botón si está cargando -->
-      {{ isLoading ? 'Prediciendo...' : 'Predecir Resultado' }}
+      <span *ngIf="!isLoading">Predecir Resultado</span>
+      <span *ngIf="isLoading">Prediciendo...</span>
     </button>
   </form>
 
