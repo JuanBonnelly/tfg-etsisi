@@ -1,4 +1,3 @@
-// src/app/models/api.models.ts
 
 export interface Team {
   equipo_id: string;
@@ -9,14 +8,15 @@ export interface Team {
 export interface PredictionRequest {
   local_team_name: string;
   visitor_team_name: string;
-  match_date: string; // Formato 'YYYY-MM-DD'
+  match_date: string; 
 }
 
 export interface PredictionResponse {
-  predicted_result: string; // 'Victoria Local', 'Empate', o 'Victoria Visitante'
+  predicted_result: string; 
   probabilities: {
     'Victoria Local': number;
     'Empate': number;
     'Victoria Visitante': number;
   };
+  explanations: string[];
 }

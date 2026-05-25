@@ -8,16 +8,16 @@ class EstadisticasPartido(Base):
 
     estadisticas_id = Column(Integer, primary_key=True, autoincrement=True, nullable=False)
     partido_id = Column(String(20), ForeignKey('partido.partido_id'), nullable=False, unique=True)
-    #partido_id = Column(String(20), nullable=False, unique=True)    para pruebas sin foreing_keys
+    
     posesion_local = Column(Float, nullable=True)
     posesion_visitante = Column(Float, nullable=True)
     
-    # de momento vamos a dejar los tiros fuera en el futuro los añadiremos
-    #tiros_local = Column(Integer, nullable=True)
-    #tiros_visitante = Column(Integer, nullable=True)
+    
+    tiros_local = Column(Integer, nullable=True)
+    tiros_visitante = Column(Integer, nullable=True)
 
-    #tiros_puerta_local = Column(Integer, nullable=True)
-    #tiros_puerta_visitante = Column(Integer, nullable=True)
+    tiros_puerta_local = Column(Integer, nullable=True)
+    tiros_puerta_visitante = Column(Integer, nullable=True)
 
     corners_local = Column(Integer, nullable=True)
     corners_visitante = Column(Integer, nullable=True)
@@ -28,7 +28,7 @@ class EstadisticasPartido(Base):
     tarjetas_rojas_local = Column(Integer, nullable=True)
     tarjetas_rojas_visitante = Column(Integer, nullable=True)
 
-    # Relación 1:1 con Partido
+    
     partido = relationship("Partido", back_populates="estadisticas")
 
     def __repr__(self):
