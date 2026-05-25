@@ -1,26 +1,24 @@
-<!-- src/app/components/prediction-interface/prediction-interface.html -->
-
 
 <div class="container">
   <h1>Predictor de Partidos de Fútbol</h1>
   
-  <!-- El formulario llama a onSubmit() cuando se envía. #predictionForm es una referencia local. -->
+
   <form (ngSubmit)="onSubmit()" #predictionForm="ngForm">
     <div class="form-row">
-      <!-- Selector Equipo Local -->
+     
       <div class="form-group">
         <label for="homeTeam">Equipo Local</label>
-        <!-- [(ngModel)] conecta este select con la variable selectedHomeTeamName -->
+        
         <select id="homeTeam" name="homeTeam" [(ngModel)]="selectedHomeTeamName" required>
           <option [ngValue]="null" disabled>Selecciona un equipo</option>
-          <!-- *ngFor recorre la lista de equipos para crear las opciones -->
+          
           <option *ngFor="let team of teams" [value]="team.nombre">{{ team.nombre }}</option>
         </select>
       </div>
 
       <span class="vs-separator">VS</span>
 
-      <!-- Selector Equipo Visitante -->
+     
       <div class="form-group">
         <label for="awayTeam">Equipo Visitante</label>
         <select id="awayTeam" name="awayTeam" [(ngModel)]="selectedAwayTeamName" required>
@@ -31,28 +29,24 @@
     </div>
     
     <div class="form-row">
-      <!-- Selector de Fecha -->
+    
       <div class="form-group date-group">
         <label for="predictionDate">Fecha del Partido</label>
         <input type="date" id="predictionDate" name="predictionDate" [(ngModel)]="predictionDate" required>
       </div>
     </div>
 
-    <!-- El botón se deshabilita si el formulario no es válido o si está cargando -->
     <button type="submit" [disabled]="!predictionForm.form.valid || isLoading">
       <span *ngIf="!isLoading">Predecir Resultado</span>
       <span *ngIf="isLoading">Prediciendo...</span>
     </button>
   </form>
-
-  <!-- Contenedor de Resultados y Errores -->
   <div class="results-area">
-    <!-- Mensaje de Error (solo se muestra si errorMessage tiene un valor) -->
+    
     <div *ngIf="errorMessage" class="error-message">
       <p><strong>Error:</strong> {{ errorMessage }}</p>
     </div>
 
-    <!-- Resultados (solo se muestra si predictionResult tiene un valor) -->
     <div *ngIf="predictionResult" class="results-container">
       <h2>Resultado de la Predicción</h2>
       <div class="prediction-winner">
@@ -63,6 +57,18 @@
         <p>Victoria Local (1): <strong>{{ (predictionResult.probabilities['Victoria Local'] * 100).toFixed(1) }}%</strong></p>
         <p>Empate (X): <strong>{{ (predictionResult.probabilities['Empate'] * 100).toFixed(1) }}%</strong></p>
         <p>Victoria Visitante (2): <strong>{{ (predictionResult.probabilities['Victoria Visitante'] * 100).toFixed(1) }}%</strong></p>
+      </div>
+      <div *ngIf="predictionResult.explanations?.length && predictionResult.explanations[0].startsWith('[')" class="explanations">
+        <h3>Factores Clave de la Predicción</h3>
+        <ul>
+          <li *ngFor="let explanation of predictionResult.explanations"
+              [ngClass]="{
+                'positive': explanation.startsWith('[INFLUENCIA POSITIVA]'),
+                'negative': explanation.startsWith('[INFLUENCIA NEGATIVA]')
+              }">
+            {{ explanation }}
+          </li>
+        </ul>
       </div>
     </div>
   </div>

@@ -4,6 +4,7 @@ from domain.models.base import Base
 from domain.models.equipo import Equipo
 from domain.models.temporada import Temporada      
 from domain.models.competicion import Competicion
+from domain.models.estadisticas_partido import EstadisticasPartido
 
 class Partido(Base):
     __tablename__ = 'partido'
@@ -14,29 +15,18 @@ class Partido(Base):
     equipo_local_id = Column(String(20), ForeignKey('equipo.equipo_id'), nullable=False)
     equipo_visitante_id = Column(String(20), ForeignKey('equipo.equipo_id'), nullable=False)
 
-
-    # Temporariamente sin foreing_keys para pruebas
-    #equipo_local_id = Column(String(20),  nullable=False)
-    #equipo_visitante_id = Column(String(20),  nullable=False)
-
     goles_local = Column(Integer, nullable=True)
     goles_visitante = Column(Integer, nullable=True)
 
     temporada_id = Column(String(9), ForeignKey('temporada.temporada_id'), nullable=False)
     competicion_id = Column(Integer, ForeignKey('competicion.competicion_id'), nullable=False)
     
-    
-    # Temporariamente sin foreing_keys para pruebas
-    #temporada_id = Column(String(9),nullable=False)
-    #competicion_id = Column(Integer, nullable=False)
-
-
-    # Relaciones ORM
+   
     equipo_local = relationship("Equipo", back_populates="partidos_local", foreign_keys=[equipo_local_id])
     equipo_visitante = relationship("Equipo", back_populates="partidos_visitante", foreign_keys=[equipo_visitante_id])
     temporada = relationship("Temporada", back_populates="partidos")
     competicion = relationship("Competicion")
-    estadisticas = relationship("EstadisticasPartido", uselist=False, back_populates="partido")
+    estadisticas = relationship("EstadisticasPartido", back_populates="partido", uselist=False)
 
 
     def __repr__(self):

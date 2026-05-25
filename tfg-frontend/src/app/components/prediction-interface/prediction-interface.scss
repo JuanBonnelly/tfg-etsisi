@@ -1,6 +1,4 @@
-/* src/app/components/prediction-interface/prediction-interface.scss  */
 
-// Definimos los colores como variables de SASS (con $)
 $primary-color: #007bff;
 $success-color: #28a745;
 $error-color: #dc3545;
@@ -85,13 +83,13 @@ button[type="submit"] {
   cursor: pointer;
   transition: background-color 0.2s;
 
-  // Ahora 'darken' puede funcionar porque $primary-color es un color real para SASS
+  
   &:hover:not(:disabled) {
     background-color: darken($primary-color, 10%);
   }
 
   &:disabled {
-    background-color: lighten($primary-color, 20%); // Usamos lighten para el estado deshabilitado
+    background-color: lighten($primary-color, 20%); 
     cursor: not-allowed;
   }
 }
@@ -136,7 +134,7 @@ button[type="submit"] {
   }
 }
 
-// Spinner de carga con CSS puro
+
 .spinner-container {
   display: flex;
   justify-content: center;
@@ -149,7 +147,7 @@ button[type="submit"] {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border-left-color: $primary-color; // Sigue funcionando con variables de SASS
+  border-left-color: $primary-color; 
   animation: spin 1s ease infinite;
 }
 
@@ -159,5 +157,48 @@ button[type="submit"] {
   }
   100% {
     transform: rotate(360deg);
+  }
+}
+.explanations {
+  margin-top: 1.5rem;
+  padding: 1.5rem;
+  border-top: 1px solid #dee2e6; 
+  text-align: left;
+  background-color: #e9ecef; 
+  border-radius: 0 0 $border-radius $border-radius;
+
+  h3 {
+    color: #495057; 
+    margin-top: 0;
+    margin-bottom: 1rem;
+    font-size: 1.1rem;
+  }
+
+  ul {
+    list-style-type: none; 
+    padding: 0;
+    margin: 0;
+  }
+
+  li {
+    margin-bottom: 0.75rem;
+    color: #212529; 
+    font-size: 0.9rem;
+    line-height: 1.5;
+
+    strong {
+      font-weight: bold;
+    }
+  }
+
+  
+  li.positive {
+    color: $success-color;   
+    font-weight: 600;
+  }
+
+  li.negative {
+    color: $error-color;     
+    font-weight: 600;
   }
 }

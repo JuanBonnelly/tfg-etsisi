@@ -1,31 +1,27 @@
-from pydantic import BaseModel, Field
-from typing import Dict, Optional
 from datetime import date
+from typing import Dict, Optional, List
 
-# --- Schemas para Equipo (lectura) ---
+from pydantic import BaseModel, Field
+
+
+
 class TeamResponse(BaseModel):
-    equipo_id: str = Field(..., description="ID único del equipo (ej. 'ARS', 'RMA')")
-    nombre: str = Field(..., description="Nombre completo del equipo (ej. 'Arsenal')")
-    abreviatura: str = Field(..., description="Abreviatura del equipo (ej. 'ARS')")
+    equipo_id: str = Field(..., description="ID único del equipo")
+    nombre: str = Field(..., description="Nombre completo del equipo")
+    abreviatura: str = Field(..., description="Abreviatura del equipo")
 
     class Config:
-        from_attributes = True  # Usado en Pydantic v2 en lugar de orm_mode = True
+        from_attributes = True
 
-
-# --- Schemas para Predicción ---
 class PredictionRequest(BaseModel):
     local_team_name: str = Field(..., alias="equipo_local", description="Nombre del equipo local")
     visitor_team_name: str = Field(..., alias="equipo_visitante", description="Nombre del equipo visitante")
-    match_date: Optional[date] = Field(None, description="Fecha del partido (opcional, para contexto histórico de features)")
-
+    match_date: Optional[date] = Field(None, description="Fecha del partido")
+    
     class Config:
-        populate_by_name = True  # Permite usar los aliases al crear instancias con nombre de campos originales
-
+        populate_by_name = True
 
 class PredictionResponse(BaseModel):
-    predicted_result: str = Field(..., description="Resultado predicho: 'Victoria Local', 'Empate' o 'Victoria Visitante'")
-    probabilities: Dict[str, float] = Field(..., description="Probabilidades de cada resultado (Victoria Local, Empate, Victoria Visitante)")
-
-    # Descomenta si implementas explicaciones SHAP
-    # shap_values: Optional[Dict[str, float]] = None
-    # base_value: Optional[float] = None
+    predicted_result: str = Field(..., description="Resultado predicho:'V','E'o'D'")
+    probabilities: Dict[str, float] = Field(..., description="Probabilidades de cada resultado ('V','E','D')")
+    explanations: List[str] = Field(..., description="Lista de las principales razones que influyeron en la predicción.")

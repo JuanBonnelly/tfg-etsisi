@@ -1,78 +1,53 @@
-import pandas as pd
-from sklearn.neural_network import MLPClassifier
-from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
-from sklearn.model_selection import GridSearchCV
-from sklearn.utils import shuffle
-from imblearn.over_sampling import RandomOverSampler
-import joblib
 import os
 
-# ------------------ CARGA DE DATOS ------------------
-df = pd.read_csv("data/dataset_partidos_enriquecido.csv", parse_dates=["fecha"])
+import joblib
+import pandas as pd
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
+from sklearn.neural_network import MLPClassifier
 
-# Selección de variables predictoras
-features = [col for col in df.columns if col.startswith((
-    "media_ult10_", "media_h2h_", "media_hist_",
-    "diferencia_", "racha_", "media_hist_goles_", "tendencia_empate_"
-))]
+# Primera iteración del modelo MLPClassifier.
+# Utiliza el dataset base y estadísticas directas del partido como punto de partida.
+df = pd.read_csv("data/dataset_partidos.csv", parse_dates=["fecha"])
 
-print("\nVariables predictoras utilizadas:")
-for col in features:
-    print(f" - {col}")
+df["anio"] = df["fecha"].dt.year
+df_train = df[df["anio"] <= 2023].copy()
+df_test = df[df["anio"] == 2024].copy()
 
-# Eliminar filas con valores nulos en target o variables
-df = df.dropna(subset=["resultado"] + features)
+print(f"Partidos para entrenamiento: {len(df_train)}")
+print(f"Partidos para prueba: {len(df_test)}")
 
-# ------------------ DIVISIÓN TEMPORAL ------------------
-df_train = df[df["fecha"].dt.year < 2024]
-df_test = df[df["fecha"].dt.year == 2024]
+features = [
+    "posesion_local",
+    "posesion_visitante",
+    "corners_local",
+    "corners_visitante",
+    "tarjetas_amarillas_local",
+    "tarjetas_amarillas_visitante",
+    "tarjetas_rojas_local",
+    "tarjetas_rojas_visitante",
+]
 
 X_train = df_train[features]
 y_train = df_train["resultado"]
+
 X_test = df_test[features]
 y_test = df_test["resultado"]
 
-print(f"\nPartidos para entrenamiento: {len(X_train)}")
-print(f"Partidos para prueba: {len(X_test)}")
-
-# ------------------- OVERSAMPLING -------------------
-ros = RandomOverSampler(random_state=42)
-X_train_bal, y_train_bal = ros.fit_resample(X_train, y_train)
-X_train_bal, y_train_bal = shuffle(X_train_bal, y_train_bal, random_state=42)
-
-print(f"Partidos para entrenamiento (después de oversampling): {len(X_train_bal)}")
-
-# ----------------- DEFINICIÓN DEL MODELO ------------------
-param_grid = {
-    'hidden_layer_sizes': [(50,), (100,), (100, 50)],
-    'activation': ['relu', 'tanh'],
-    'solver': ['adam'],
-    'alpha': [0.0001, 0.001],
-    'learning_rate': ['constant', 'adaptive']
-}
-
-grid_search = GridSearchCV(
-    estimator=MLPClassifier(
-        max_iter=2000,
-        early_stopping=True,
-        random_state=42
-    ),
-    param_grid=param_grid,
-    scoring='f1_macro',
-    cv=5,
-    verbose=1,
-    n_jobs=-1
+modelo = MLPClassifier(
+    hidden_layer_sizes=(100,),
+    activation="relu",
+    solver="adam",
+    max_iter=2000,
+    random_state=42,
 )
 
-grid_search.fit(X_train_bal, y_train_bal)
-model = grid_search.best_estimator_
+modelo.fit(X_train, y_train)
 
-# ----------------- EVALUACIÓN ------------------
-y_pred = model.predict(X_test)
+y_pred = modelo.predict(X_test)
 
-print("\nResultados del modelo (MLPClassifier):")
+print("\nResultados del modelo version 1 de MLPClassifier:")
 print("Accuracy:", accuracy_score(y_test, y_pred))
-print("F1 Macro Score:", f1_score(y_test, y_pred, average='macro'))
+print("F1 Macro Score:", f1_score(y_test, y_pred, average="macro"))
 
 print("\nMatriz de confusión:")
 print(confusion_matrix(y_test, y_pred))
@@ -80,10 +55,7 @@ print(confusion_matrix(y_test, y_pred))
 print("\nReporte de clasificación:")
 print(classification_report(y_test, y_pred))
 
-print("\nMejor configuración encontrada:")
-print(grid_search.best_params_)
-
-# -------------- GUARDADO OPCIONAL ----------------------
 os.makedirs("modelos/mlpclassifier", exist_ok=True)
-joblib.dump(model, "modelos/mlpclassifier/modelo_mlp1.pkl")
+joblib.dump(modelo, "modelos/mlpclassifier/modelo_mlp1.pkl")
 print("Modelo guardado como 'modelos/mlpclassifier/modelo_mlp1.pkl'")
+

@@ -1,63 +1,54 @@
-import joblib
 import os
-import pandas as pd
-import matplotlib.pyplot as plt
 
+import joblib
 import matplotlib
-matplotlib.use('Agg')  # Fuerza uso sin GUI (evita error Tcl)
+import pandas as pd
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-# Ruta al modelo que quieres analizar
+# Inspección del modelo Random Forest final y visualización de importancia de variables.
 MODELO_PATH = "modelos/random_forest/modelo_randomforest5.pkl"
-
-# Ruta al dataset que se usó para entrenar el modelo
 DATASET_PATH = "data/dataset_partidos_enriquecido.csv"
 
-# ================= CARGAR MODELO ====================
 if not os.path.exists(MODELO_PATH):
-    print(f" No se encontró el modelo en {MODELO_PATH}")
-    exit()
+    raise FileNotFoundError(f"No se encontró el modelo en {MODELO_PATH}")
+
+if not os.path.exists(DATASET_PATH):
+    raise FileNotFoundError(f"No se encontró el dataset en {DATASET_PATH}")
 
 modelo = joblib.load(MODELO_PATH)
-print(f"\n Modelo cargado: {MODELO_PATH}")
+print(f"\nModelo cargado: {MODELO_PATH}")
 print(f"Tipo: {type(modelo)}")
-
-# ================= CARGAR DATASET ===================
-if not os.path.exists(DATASET_PATH):
-    print(f" No se encontró el dataset en {DATASET_PATH}")
-    exit()
 
 df = pd.read_csv(DATASET_PATH)
 features = [col for col in df.columns if col.startswith((
-    "media_ult10_", "media_h2h_", "media_hist_",
-    "diferencia_", "racha_", "media_hist_goles_", "tendencia_empate_"
+    "media_ult10_",
+    "media_h2h_",
+    "media_hist_",
+    "diferencia_",
+    "racha_",
+    "tendencia_empate_",
 ))]
 
-
-# ================= INFO DEL MODELO ==================
 if hasattr(modelo, "feature_importances_"):
     importancias = modelo.feature_importances_
     importancia_df = pd.DataFrame({
         "feature": features,
-        "importancia": importancias
+        "importancia": importancias,
     }).sort_values(by="importancia", ascending=False)
 
-    print("\n Importancia de variables:")
+    print("\nImportancia de variables:")
     print(importancia_df.to_string(index=False))
 
-    # ======== VISUALIZACIÓN ==========
     plt.figure(figsize=(10, 6))
     importancia_df.sort_values("importancia").plot.barh(x="feature", y="importancia", legend=False)
     plt.title("Importancia de variables (Random Forest)")
     plt.xlabel("Importancia relativa")
     plt.tight_layout()
-    # Crear carpeta si no existe
-    os.makedirs("graficas", exist_ok=True)
 
-    # Guardar imagen
+    os.makedirs("graficas", exist_ok=True)
     plt.savefig("graficas/importancia_variables_modelo5.png", dpi=300)
     print("Gráfico guardado en 'graficas/importancia_variables_modelo5.png'")
-
-
 else:
-    print(" Este modelo no tiene atributo 'feature_importances_' (¿no es un árbol?).")
+    print("Este modelo no tiene el atributo 'feature_importances_'.")

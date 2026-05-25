@@ -1,30 +1,82 @@
+import os
+
+import joblib
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+from imblearn.over_sampling import RandomOverSampler
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score
 from sklearn.model_selection import GridSearchCV
 from sklearn.utils import shuffle
-from imblearn.over_sampling import RandomOverSampler
-import joblib
-import os
 
-# Cargar el dataset enriquecido
+# Quinta iteración del modelo Random Forest.
+# Se añaden variables, incorpora balanceo de clases y ajusta hiperparámetros con GridSearchCV.
+
 df = pd.read_csv("data/dataset_partidos_enriquecido.csv", parse_dates=["fecha"])
 
-# Selección de columnas predictoras
 features = [col for col in df.columns if col.startswith((
-    "media_ult10_", "media_h2h_", "media_hist_",
-    "diferencia_", "racha_", "media_hist_goles_" , "tendencia_empate_"
+    "media_ult10_posesion_local",
+    "media_ult10_posesion_visitante",
+    "media_ult10_corners_local",
+    "media_ult10_corners_visitante",
+    "media_ult10_tarjetas_amarillas_local",
+    "media_ult10_tarjetas_amarillas_visitante",
+    "media_ult10_tarjetas_rojas_local",
+    "media_ult10_tarjetas_rojas_visitante",
+    "tendencia_empate_h2h",
+    "media_h2h_posesion_local",
+    "media_h2h_posesion_visitante",
+    "media_h2h_corners_local",
+    "media_h2h_corners_visitante",
+    "media_h2h_tarjetas_amarillas_local",
+    "media_h2h_tarjetas_amarillas_visitante",
+    "media_h2h_tarjetas_rojas_local",
+    "media_h2h_tarjetas_rojas_visitante",
+    "media_hist_posesion_local",
+    "media_hist_posesion_visitante",
+    "media_hist_corners_local",
+    "media_hist_corners_visitante",
+    "media_hist_tarjetas_amarillas_local",
+    "media_hist_tarjetas_amarillas_visitante",
+    "media_hist_tarjetas_rojas_local",
+    "media_hist_tarjetas_rojas_visitante",
+    "media_ult10_diferencia_goles_local",
+    "media_ult10_diferencia_goles_visitante",
+    "media_h2h_diferencia_goles_local",
+    "media_h2h_diferencia_goles_visitante",
+    "media_hist_diferencia_goles_local",
+    "media_hist_diferencia_goles_visitante",
+    "racha_ganados_local_ult5",
+    "racha_ganados_visitante_ult5",
+    "diferencia_posesion",
+    "diferencia_corners",
+    "diferencia_tarjetas_amarillas",
+    "diferencia_tarjetas_rojas",
+    "media_hist_goles_local_a_favor",
+    "media_hist_goles_local_en_contra",
+    "racha_empates_local_ult5",
+    "racha_derrotas_local_ult5",
+    "racha_empates_visitante_ult5",
+    "racha_derrotas_visitante_ult5",
+    "goles_local_ult5_media",
+    "goles_visitante_ult5_media",
+    "tendencia_empate_local",
+    "tendencia_empate_visitante",
+    "posesion_local",
+    "posesion_visitante",
+    "corners_local",
+    "corners_visitante",
+    "tarjetas_amarillas_local",
+    "tarjetas_amarillas_visitante",
+    "tarjetas_rojas_local",
+    "tarjetas_rojas_visitante"
 ))]
-# Mostrar variables seleccionadas
+
 print("\nVariables predictoras utilizadas:")
 for col in features:
     print(f" - {col}")
     
-# Filtrado de datos completos
 df = df.dropna(subset=["resultado"] + features)
 
-# División en conjunto de entrenamiento y prueba
 df_train = df[df["fecha"].dt.year < 2024]
 df_test = df[df["fecha"].dt.year == 2024]
 
@@ -36,20 +88,12 @@ y_test = df_test["resultado"]
 print(f"\nPartidos para entrenamiento: {len(X_train)}")
 print(f"Partidos para prueba: {len(X_test)}")
 
-# Aplicar oversampling para balancear clases del entrenamiento
 ros = RandomOverSampler(random_state=42)
 X_train_bal, y_train_bal = ros.fit_resample(X_train, y_train)
-
-# Barajar el conjunto de entrenamiento
 X_train_bal, y_train_bal = shuffle(X_train_bal, y_train_bal, random_state=42)
 
-print(f"Partidos para entrenamiento (después de oversampling): {len(X_train_bal)}")
+print(f"Partidos para entrenamiento después de Oversampling: {len(X_train_bal)}")
 
-# Crear scaler sobre el X_train_bal ya balanceado
-scaler = StandardScaler()
-scaler.fit(X_train_bal)
-
-# Definición del modelo con GridSearchCV
 param_grid = {
     "n_estimators": [100, 200],
     "max_depth": [5, 10, 15],
@@ -66,14 +110,12 @@ grid_search = GridSearchCV(
     verbose=1
 )
 
-# Entrenar el modelo usando los datos balanceados y barajados
 grid_search.fit(X_train_bal, y_train_bal)
-model = grid_search.best_estimator_
+modelo = grid_search.best_estimator_
 
-# Evaluación del modelo
-y_pred = model.predict(X_test)
+y_pred = modelo.predict(X_test)
 
-print("\n Resultados del modelo (Random Forest v5):")
+print("\n Resultados del modelo versión 5 del RandomForest:")
 print("Accuracy:", accuracy_score(y_test, y_pred))
 print("F1 Macro Score:", f1_score(y_test, y_pred, average='macro'))
 
@@ -86,9 +128,6 @@ print(classification_report(y_test, y_pred))
 print("\n Mejor configuración encontrada:")
 print(grid_search.best_params_)
 
-# Guardar el modelo entrenado
-os.makedirs("modelos", exist_ok=True)
-joblib.dump(model, "modelos/random_forest/modelo_randomforest5.pkl")
-print(" Modelo guardado como 'modelos/random_forest/modelo_randomforest5.pkl'")
-joblib.dump(scaler, "modelos/random_forest/scaler_randomforest5.pkl")
-print("Scaler guardado como 'modelos/random_forest/scaler_randomforest5.pkl'")
+#os.makedirs("modelos", exist_ok=True)
+#joblib.dump(modelo, "modelos/random_forest/modelo_randomforest5.pkl")
+#print(" Modelo guardado como 'modelos/random_forest/modelo_randomforest5.pkl'")

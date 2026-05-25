@@ -12,19 +12,8 @@ services:
       - "3307:3306"
     volumes:
       - db_data:/var/lib/mysql
+      - ./docker/mysql/initdb:/docker-entrypoint-initdb.d
 
-  #minio:
-    #image: minio/minio
-    #container_name: minio
-    #environment:
-     # MINIO_ROOT_USER: minioadmin
-     # MINIO_ROOT_PASSWORD: minioadmin
-    #volumes:
-     # - minio_data:/data
-    #ports:
-     # - "9000:9000"
-     # - "9001:9001"
-    #command: server /data --console-address ":9001"
     
   backend:
       build:
@@ -38,20 +27,21 @@ services:
         DB_HOST: db
         DB_PORT: 3306
         DB_NAME: futbol_TFG
-        ML_MODEL_PATH: /app/modelos/random_forest/modelo_randomforest5.pkl
-        SCALER_PATH: /app/modelos/random_forest/scaler_randomforest5.pkl # Asumiendo este es tu scaler
+        ML_MODEL_PATH: /app/modelos/mlpclassifier/modelo_mlp_final.pkl
+        SCALER_PATH: /app/modelos/mlpclassifier/scaler_mlp_final.pkl
+        EXPLAINER_PATH: /app/modelos/mlpclassifier/explainer_mlp_final.pkl
       ports:
         - "8000:8000"
       depends_on:
         - db
       volumes:
-        - ./modelos/mlpclassifier:/app/modelos/mlpclassifier # Para que los cambios en ML se reflejen sin rebuild
-        - ./data:/app/data # Para acceso a datasets si es necesario
-        - ./backend:/app/backend # Montar la carpeta del backend
-        - ./domain:/app/domain # Montar la carpeta de modelos ORM
-        - ./infra:/app/infra # Montar infra/database, etc.
+        - ./modelos/mlpclassifier:/app/modelos/mlpclassifier 
+        - ./data:/app/data 
+        - ./backend:/app/backend 
+        - ./domain:/app/domain 
+        - ./infra:/app/infra 
 
 
 volumes:
   db_data: {}
-  minio_data: {}
+  

@@ -11,9 +11,7 @@ class Equipo(Base):
 
     # Relaciones con Partido
     partidos_local = relationship("Partido", back_populates="equipo_local", foreign_keys="[Partido.equipo_local_id]")
-    partidos_visitante = relationship("Partido", back_populates="equipo_visitante", foreign_keys="[Partido.equipo_visitante_id]")
-    # Temporalmente sin foreing_keys
-    
+    partidos_visitante = relationship("Partido", back_populates="equipo_visitante", foreign_keys="[Partido.equipo_visitante_id]")   
     
     def __repr__(self):
         return f"<Equipo(id={self.equipo_id}, nombre='{self.nombre}', abreviatura='{self.abreviatura}')>"
