@@ -7,14 +7,14 @@ A partir del histórico de partidos y estadísticas se generan variables que int
 
 ## Inicio rápido
 
-Si solo se quiere ejecutar la aplicación y probar una predicción, los pasos básicos son estos:
+Si solo se quiere ejecutar la aplicación y probar una predicción, la forma recomendada es utilizar Docker Compose para levantar el backend y la base de datos, y npm para levantar el frontend.
 
-1. Levantar backend y base de datos con Docker: `docker compose up`
+1. Levantar backend y base de datos con Docker Compose: `docker compose down -v` ,`docker compose up --build`
 2. Entrar en la carpeta del frontend: `cd tfg-frontend`
 3. Instalar dependencias del frontend: `npm install`
-4. Levantar Angular: `ng serve`
+4. Levantar Angular: `npm start`
 5. Abrir en el navegador: `http://localhost:4200`
-
+6. El backend queda disponible en `http://localhost:8000` la documentación interactiva de la API puede consultarse en `http://localhost:8000/docs`
 
 ## Estructura del proyecto
 
@@ -174,8 +174,8 @@ El backend no trabaja únicamente con el modelo entrenado. Antes de hacer una pr
 
 Por eso, para que la aplicación funcione correctamente, se necesita:
 
-- el modelo final ya entrenado,
-- la base de datos ya poblada.
+- El modelo final ya entrenado,
+- La base de datos ya poblada.
 
 
 ## Frontend
@@ -188,25 +188,40 @@ La base del proyecto frontend fue generada inicialmente con Angular CLI y a part
 
 Su función es permitir al usuario:
 
-- seleccionar un equipo local,
-- seleccionar un equipo visitante,
-- elegir una fecha,
-- solicitar una predicción al backend,
-- y ver el resultado con sus probabilidades y explicaciones.
+- Seleccionar un equipo local,
+- Seleccionar un equipo visitante,
+- Elegir una fecha,
+- Solicitar una predicción al backend,
+- Ver el resultado con sus probabilidades y explicaciones.
 
 
 ## Estado de la entrega
 
 El proyecto se entrega con:
 
-- un dump de la base de datos en `docker/mysql/initdb/`,
-- el modelo final ya entrenado en formato `.pkl`.
+- Un dump de la base de datos en `docker/mysql/initdb/`,
+- El modelo final ya entrenado en modelos/mlpclassifier/modelo_mlp_final.pkl;
+- El explainer utilizado para las explicaciones SHAP en modelos/mlpclassifier/explainer_mlp_final.pkl;
+- Un archivo .env.example como plantilla de variables de entorno para ejecución local del backend.
 
 Esto permite ejecutar directamente la aplicación sin necesidad de repetir el scraping ni el entrenamiento completo.
 
 Cuando MySQL se inicializa por primera vez con Docker Compose, ejecuta automáticamente los scripts y dumps incluidos en `docker/mysql/initdb/`. De esta forma, la base de datos queda cargada con la información necesaria para que la aplicación funcione.
 
 La base de datos ya poblada es necesaria porque el backend utiliza el histórico almacenado para construir las variables del partido a predecir. El modelo `.pkl` se usa después para obtener la predicción final.
+
+Para reconstruir la base de datos desde cero, se recomienda ejecutar:
+
+docker compose down -v
+docker compose up --build
+
+El parámetro -v elimina el volumen anterior de MySQL y permite que el dump vuelva a cargarse desde cero.
+
+Si se ejecuta el proyecto mediante Docker Compose, no es necesario crear un archivo `.env`, ya que las variables de entorno necesarias para el backend están definidas directamente en `docker-compose.yml`.
+
+El archivo `.env.example` se incluye únicamente como plantilla para la ejecución local del backend fuera de Docker.
+
+Para ejecutar el backend localmente, se debe copiar `.env.example` y renombrarlo como `.env`.
 
 
 ## Requisitos previos
@@ -222,7 +237,9 @@ Para ejecutar el proyecto es necesario disponer de:
 ## Instalación de dependencias
 
 ### Backend
+La forma recomendada de ejecutar el backend es mediante Docker Compose, ya que de esta forma también se levanta la base de datos MySQL y se cargan automáticamente las variables necesarias para el funcionamiento de la aplicación.
 
+La ejecución local del backend es opcional. Si se desea ejecutar el backend fuera de Docker, primero se debe crear un archivo .env en la raíz del proyecto a partir del archivo .env.example.
 Desde la raíz del proyecto:
 
 ```bash
@@ -262,13 +279,16 @@ La forma recomendada es utilizar Docker Compose.
 Desde la raíz del proyecto:
 
 ```bash
-docker compose up
+docker compose down -v
+docker compose up --build
 ```
 
 Esto levanta:
 
 - MySQL
 - backend FastAPI
+- La base de datos futbol_TFG
+- Carga automaticamente el dump incluido en docker/mysql/initdb/.
 
 El backend queda disponible en http://localhost:8000
 
@@ -281,13 +301,13 @@ La documentación interactiva de la API está en http://localhost:8000/docs
 Desde la carpeta `tfg-frontend/`:
 
 ```bash
-ng serve
+npm start
 ```
 
 o, según la configuración disponible:
 
 ```bash
-npm start
+ng serve
 ```
 
 El frontend queda disponible en http://localhost:4200
